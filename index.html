@@ -56,6 +56,11 @@ input[type=number]{width:5.5em}
 .fbtns{display:flex}
 .fbtns button{font:inherit;background:none;border:0;color:#DCE2E8;width:30px;height:30px;font-size:19px;line-height:1;border-radius:4px;cursor:pointer}
 .fbtns button:hover{background:#2C3848;color:var(--white)}
+.fpic{display:block;position:relative;width:100%;padding:0;margin:0;border:0;background:none;color:inherit;font:inherit;cursor:inherit;border-radius:2px;-webkit-tap-highlight-color:transparent}
+.fpic:focus-visible{outline:3px solid var(--film);outline-offset:3px}
+.fcaption{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 4px;font-size:11.5px;font-weight:650;line-height:1.25;text-align:left;color:var(--white);background:linear-gradient(transparent,rgba(10,14,20,.85));white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:0 0 2px 2px}
+.chip{position:absolute;top:6px;left:6px;background:var(--film);color:var(--ink);font-size:11px;font-weight:800;padding:1px 6px;border-radius:4px}
+.sheet-hint{margin:10px 2px 0}
 .empty{margin:18px 4px;color:#AEB8C3;max-width:46ch}
 
 /* Tabs and panels */
@@ -95,12 +100,21 @@ progress::-moz-progress-bar{background:var(--ink)}
 .status:empty{display:none}
 .status[data-kind=error]{box-shadow:inset 6px 0 0 var(--film)}
 .status[data-kind=error]::before{content:"Heads up: ";font-weight:800;color:var(--film)}
+.status .undo{font:inherit;font-weight:800;color:var(--film);background:none;border:0;padding:2px 4px;margin-left:4px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.status .undo:focus-visible{outline:3px solid var(--film);outline-offset:2px}
+.clock{margin:6px 0 0;min-height:1.5em;font-size:14px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--mute)}
 
 dialog{border:0;border-radius:12px;padding:22px;max-width:560px;width:calc(100% - 28px);color:var(--ink);background:var(--white)}
 dialog::backdrop{background:rgba(23,32,44,.55)}
 dialog ol{padding-left:22px;margin:12px 0 18px}
 dialog li{margin-bottom:6px}
 dialog a{color:var(--ink)}
+.ed-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.ed-pic{display:grid;place-items:center;background:var(--ink);border-radius:8px;padding:10px;margin-bottom:10px}
+#edCanvas{display:block;touch-action:none;cursor:crosshair;border-radius:2px}
+#edCanvas:focus-visible{outline:3px solid var(--film);outline-offset:3px}
+#editor .inline{margin-top:10px}
+#editor output{font-variant-numeric:tabular-nums}
 code{font-size:.92em;background:var(--paper);padding:1px 5px;border-radius:4px;word-break:break-all}
 .drag-ghost{position:fixed;z-index:40;pointer-events:none;aspect-ratio:1;object-fit:cover;border-radius:3px;outline:3px solid var(--film);box-shadow:0 14px 30px rgba(0,0,0,.45);transform:rotate(-3deg) scale(1.08)}
 body.dropping::after{content:"Drop to add to the contact sheet";position:fixed;inset:12px;z-index:60;display:grid;place-items:center;border:4px dashed var(--film);border-radius:14px;background:rgba(23,32,44,.8);color:var(--white);font-weight:800;font-stretch:112%;font-size:clamp(22px,4vw,34px);text-align:center;padding:16px;pointer-events:none}
@@ -144,9 +158,10 @@ body.dropping::after{content:"Drop to add to the contact sheet";position:fixed;i
       <button class="btn ghost small" id="clear" type="button">Clear all</button>
     </div>
     <div class="sheet">
-      <p id="emptySheet" class="empty">Your picks land here, in the order they'll play. Drag a frame to move it, or use ‹ and › under it.</p>
+      <p id="emptySheet" class="empty">Your picks land here, in the order they'll play.</p>
       <div id="frames" class="frames"></div>
     </div>
+    <p class="hint sheet-hint" id="sheetHint" hidden>Tap a frame to caption it, choose what stays in view, or pick where a clip starts. Drag to reorder.<span id="keptNote"> Your sheet stays in this browser, even after a reload, until you clear it.</span></p>
   </section>
 
   <section aria-labelledby="h-make">
@@ -183,6 +198,9 @@ body.dropping::after{content:"Drop to add to the contact sheet";position:fixed;i
             <span id="musicName" class="mute">No track yet</span>
             <button id="musicClear" class="linkish" type="button" hidden>Remove</button>
           </div>
+          <div class="row" id="musicStartRow" style="margin-top:12px" hidden>
+            <label class="inline" for="musicStart">Start the track at <input type="range" id="musicStart" min="0" max="1" step="0.1" value="0"> <output id="musicStartOut" for="musicStart">0:00.0</output></label>
+          </div>
           <div class="row" id="clipSoundRow" style="margin-top:12px" hidden>
             <label class="inline"><input type="checkbox" id="clipSound" checked> Play sound from clips</label>
             <label class="inline" id="duckLabel"><input type="checkbox" id="duck" checked> Lower the music during clips</label>
@@ -215,7 +233,8 @@ body.dropping::after{content:"Drop to add to the contact sheet";position:fixed;i
           <button class="btn" id="record" type="button">Record video</button>
         </div>
         <progress id="progress" value="0" max="1" aria-label="Reel progress"></progress>
-        <p class="hint">Recording plays the reel through once in real time, so keep this tab open and on screen until it finishes.</p>
+        <p id="reelClock" class="clock" aria-hidden="true"></p>
+        <p class="hint" style="margin-top:2px">Recording plays the reel through once in real time, so keep this tab open and on screen until it finishes. Where the browser allows it, the screen stays on while recording.</p>
       </div>
       <div class="stage">
         <canvas id="reelCanvas" width="720" height="1280" aria-label="Reel preview"></canvas>
@@ -309,6 +328,26 @@ body.dropping::after{content:"Drop to add to the contact sheet";position:fixed;i
   </form>
 </dialog>
 
+<dialog id="editor" aria-labelledby="h-editor">
+  <form method="dialog">
+    <div class="ed-head">
+      <h2 id="h-editor">Frame</h2>
+      <button class="btn small" value="done">Done</button>
+    </div>
+    <div class="ed-pic" id="edPic"><canvas id="edCanvas" tabindex="0" width="10" height="10" aria-label="What to keep in view. Tap the picture, or use the arrow keys."></canvas></div>
+    <p class="hint" style="margin:0 0 14px">Tap the part that matters most, like a face, and crops will keep it in view. The clear area is what <span id="edShape">a vertical reel</span> shows.</p>
+    <label class="field">Caption <input id="edCaption" type="text" maxlength="90" autocomplete="off" placeholder="Shows on this shot in the reel and collage"></label>
+    <label class="inline"><input type="checkbox" id="edHold"> Show this one for longer</label>
+    <div id="edClip" hidden>
+      <label class="inline" for="edStart">Start the clip at <input type="range" id="edStart" min="0" max="1" step="0.1" value="0"> <output id="edStartOut" for="edStart"></output></label>
+      <label class="inline"><input type="checkbox" id="edMute"> Mute this clip</label>
+    </div>
+    <div class="row" style="margin-top:20px">
+      <button class="btn ghost" type="button" id="edRemove">Remove frame</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 /* ============ Config ============ */
 const DEFAULT_CLIENT_ID = ''; // Optional: paste your OAuth client ID here instead of using the setup dialog.
@@ -334,6 +373,8 @@ const ease = p => 0.5 - 0.5*Math.cos(Math.PI*p);
 const stamp = () => new Date().toISOString().slice(0,10);
 const fmtDate = d => d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
 function fmtDur(s){ s = Math.max(0, Math.round(s||0)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+function fmtClock(s){ s = Math.round(Math.max(0, s || 0) * 10) / 10; const m = Math.floor(s / 60); return `${m}:${(s - m*60).toFixed(1).padStart(4, '0')}`; }
+const numOr = (v, d) => typeof v === 'number' && isFinite(v) ? v : d;
 function durMs(str, fallback){ const n = parseFloat(str); return isFinite(n) && n > 0 ? n*1000 : fallback; }
 function rng(seed){ let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function once(el, ok, bad, timeout){
@@ -354,7 +395,15 @@ function luminance(hex){
   const [r,g,b] = m.map(x => { const c = parseInt(x,16)/255; return c <= .03928 ? c/12.92 : Math.pow((c+.055)/1.055, 2.4); });
   return .2126*r + .7152*g + .0722*b;
 }
-function say(msg, kind='info'){ const el = $('#status'); el.textContent = msg; el.dataset.kind = kind; }
+function say(msg, kind='info', action){
+  if (!action) finalizeRemoval(); // A new message takes the place of any Undo on offer.
+  const el = $('#status'); el.textContent = msg; el.dataset.kind = kind;
+  if (action){
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'undo'; b.textContent = action.label; b.onclick = action.run;
+    el.append(' ', b);
+  }
+}
 function fontsReady(){
   return Promise.all([
     document.fonts.load('800 60px Archivo'), document.fonts.load('600 60px Archivo'), document.fonts.load('600 60px Caveat'), document.fonts.load('700 60px Caveat')
@@ -365,8 +414,9 @@ function fontsReady(){
 const state = {
   items: [], seq: 0, tab: 'reel',
   token: null, tokenExpiry: 0, session: null, polling: false,
-  running: null, tapTimes: [], actx: null, audioBuf: null,
-  reelUrl: null, collageUrl: null
+  running: null, tapTimes: [], actx: null, audioBuf: null, trackName: '',
+  reelUrl: null, collageUrl: null,
+  restoring: true, unrestored: []
 };
 const clientId = () => (store.get('spool.clientId') || DEFAULT_CLIENT_ID).trim();
 const proxyUrl = () => (store.get('spool.proxy') || '').trim();
@@ -414,14 +464,34 @@ async function api(path, opts={}){
   return txt ? JSON.parse(txt) : null;
 }
 
-async function prepareSession(){
-  say('Opening a picking session…');
-  const s = await api('sessions', { method:'POST', body:'{}' });
-  state.session = s;
+/* A picking session is kept for this tab, so picks still arrive if the phone reloads the page while you're in Google Photos. */
+const PICK_KEY = 'spool.pick';
+const pickStore = {
+  get(){ try { return JSON.parse(sessionStorage.getItem(PICK_KEY) || 'null'); } catch { return null; } },
+  set(v){ try { if (v) sessionStorage.setItem(PICK_KEY, JSON.stringify(v)); else sessionStorage.removeItem(PICK_KEY); } catch {} }
+};
+function showPickLink(s){
   const a = $('#pickLink');
   a.href = s.pickerUri.replace(/\/$/, '') + '/autoclose';
   a.hidden = false; $('#connect').hidden = true;
+}
+
+async function prepareSession(){
+  say('Opening a picking session…');
+  const s = await api('sessions', { method:'POST', body:'{}' });
+  s.createdAt = Date.now();
+  state.session = s;
+  showPickLink(s);
+  pickStore.set({ s, token: state.token, tokenExpiry: state.tokenExpiry, opened: false });
   say('Connected. Tap “Choose in Google Photos”, pick what you want, tap Done, then come back here.');
+}
+
+function resumePick(){
+  const p = pickStore.get();
+  if (!p?.s?.id || !p.s.pickerUri || !p.token || !(p.tokenExpiry > Date.now() + 60000)){ pickStore.set(null); return; }
+  state.token = p.token; state.tokenExpiry = p.tokenExpiry; state.session = p.s;
+  showPickLink(p.s);
+  if (p.opened) startPolling();
 }
 
 async function startPolling(){
@@ -429,7 +499,7 @@ async function startPolling(){
   state.polling = true;
   const s = state.session;
   const interval = durMs(s.pollingConfig?.pollInterval, 3000);
-  const deadline = Date.now() + durMs(s.pollingConfig?.timeoutIn, 30*60000);
+  const deadline = (s.createdAt || Date.now()) + durMs(s.pollingConfig?.timeoutIn, 30*60000);
   say('Waiting for your picks in Google Photos…');
   let finished = false;
   try {
@@ -443,7 +513,7 @@ async function startPolling(){
   finally {
     state.polling = false;
     api('sessions/' + encodeURIComponent(s.id), { method:'DELETE' }).catch(()=>{});
-    state.session = null;
+    state.session = null; pickStore.set(null);
     $('#pickLink').hidden = true;
     const c = $('#connect'); c.hidden = false; c.textContent = 'Pick more from Google Photos';
   }
@@ -472,23 +542,29 @@ async function importSession(id){
     pt = r?.nextPageToken || '';
   } while (pt);
   if (!list.length){ say('Nothing was picked.'); return; }
+  // If the page reloaded partway through an import, the same pick comes round again; skip what already arrived.
+  await restoreDone;
+  const have = new Set([...state.items, ...(pending?.gone.map(g => g.it) || [])].map(it => it.gid).filter(Boolean));
+  const fresh = list.filter(m => !have.has(m.id)), already = list.length - fresh.length;
+  if (!fresh.length){ say('Everything you picked is already on the sheet.'); return; }
   let done = 0, failed = 0, lastErr = '';
-  await pool(list, 4, async m => {
+  await pool(fresh, 4, async m => {
     try {
       const isVid = m.type === 'VIDEO';
       const blob = await fetchGoogleMedia(m.mediaFile.baseUrl + (isVid ? '=dv' : '=w2560-h2560'));
-      await addMedia({ blob, type: isVid ? 'video' : 'photo', date: m.createTime ? new Date(m.createTime) : null, name: m.mediaFile.filename || 'Google Photos item' });
+      await addMedia({ blob, type: isVid ? 'video' : 'photo', date: m.createTime ? new Date(m.createTime) : null, name: m.mediaFile.filename || 'Google Photos item', gid: m.id });
     } catch(e){ failed++; lastErr = e.message; }
-    done++; say(`Bringing in ${done} of ${list.length}…`);
+    done++; say(`Bringing in ${done} of ${fresh.length}…`);
   });
-  say(failed ? `Added ${list.length - failed} of ${list.length}. ${lastErr}` : `Added ${list.length} from Google Photos.`, failed ? 'error' : 'info');
+  const extra = already ? ` ${already} ${already === 1 ? 'was' : 'were'} already on the sheet.` : '';
+  say(failed ? `Added ${fresh.length - failed} of ${fresh.length}. ${lastErr}` : `Added ${fresh.length} from Google Photos.${extra}`, failed ? 'error' : 'info');
 }
 
 /* ============ Library ============ */
-function makeThumb(el, w, h){
+function makeThumb(it){
   const c = document.createElement('canvas'); c.width = c.height = 240;
   const x = c.getContext('2d'); x.fillStyle = '#26303D'; x.fillRect(0,0,240,240);
-  try { coverDraw(x, el, w, h, 0, 0, 240, 240, 1, 0, 0); } catch {}
+  try { coverDraw(x, it, 0, 0, 240, 240); } catch {}
   return c.toDataURL('image/jpeg', .72);
 }
 
@@ -502,7 +578,7 @@ async function shrink(img, w, h, type){
   if (!blob) return null;
   const src = URL.createObjectURL(blob), el = new Image(); el.src = src;
   try { await el.decode(); } catch { URL.revokeObjectURL(src); return null; }
-  return { src, el, ...size };
+  return { src, el, blob, ...size };
 }
 
 /* Reads the date a JPEG was taken from its EXIF block, so date order and Story mode use real dates. */
@@ -540,7 +616,9 @@ function tiffDate(v, t){
   return isNaN(d) ? null : d;
 }
 
-async function addMedia({ blob, type, date, name }){
+async function addMedia({ blob, type, date, name, saved, gid }){
+  if (!saved) await seqReady;
+  const clipIn = saved && typeof saved.clipIn === 'number' ? saved.clipIn : null;
   let src = URL.createObjectURL(blob);
   let el, w, h, duration = 0;
   try {
@@ -549,8 +627,13 @@ async function addMedia({ blob, type, date, name }){
       el.muted = true; el.playsInline = true; el.setAttribute('playsinline',''); el.preload = 'auto'; el.src = src;
       $('#vidbin').appendChild(el);
       await once(el, 'loadeddata', 'error', 20000);
+      if (!isFinite(el.duration)){
+        // Some recorded WebM files don't state their length; seeking far past the end makes the browser work it out.
+        el.currentTime = 1e101;
+        await once(el, 'seeked', 'error', 4000).catch(()=>{});
+      }
       duration = isFinite(el.duration) ? el.duration : 0;
-      el.currentTime = Math.min(0.5, duration/2 || 0);
+      el.currentTime = clipIn != null ? clamp(clipIn, 0, duration) : Math.min(0.5, duration/2 || 0);
       await once(el, 'seeked', 'error', 4000).catch(()=>{});
       w = el.videoWidth; h = el.videoHeight;
     } else {
@@ -558,7 +641,7 @@ async function addMedia({ blob, type, date, name }){
       w = el.naturalWidth; h = el.naturalHeight;
       if (Math.max(w, h) > MAX_PHOTO){
         const small = await shrink(el, w, h, blob.type === 'image/png' ? 'image/png' : 'image/jpeg').catch(() => null);
-        if (small){ URL.revokeObjectURL(src); ({ src, el, w, h } = small); }
+        if (small){ URL.revokeObjectURL(src); ({ src, el, w, h, blob } = small); }
       }
     }
     if (!w || !h) throw new Error('empty');
@@ -566,13 +649,53 @@ async function addMedia({ blob, type, date, name }){
     URL.revokeObjectURL(src); if (el && type === 'video') el.remove();
     throw new Error(`Couldn't read ${name}.`);
   }
-  state.items.push({ id: ++state.seq, order: state.seq, type, src, el, w, h, duration, date, name, thumb: makeThumb(el, w, h) });
+  const id = saved ? saved.id : ++state.seq;
+  const it = {
+    id, order: numOr(saved?.order, id), type, src, blob, el, w, h, duration, date, name,
+    fx: clamp(numOr(saved?.fx, .5), 0, 1), fy: clamp(numOr(saved?.fy, .5), 0, 1),
+    caption: typeof saved?.caption === 'string' ? saved.caption : '',
+    hold: !!saved?.hold, clipIn, mute: !!saved?.mute,
+    gid: gid || (typeof saved?.gid === 'string' ? saved.gid : null)
+  };
+  it.thumb = makeThumb(it);
+  state.items.push(it);
+  if (!saved) keepItem(it, true);
   scheduleSheet();
+  return it;
 }
 
 function disposeItem(it){
+  clearTimeout(it.keepTimer);
   URL.revokeObjectURL(it.src);
   if (it.type === 'video'){ it.el.pause(); it.el.remove(); }
+}
+
+/* Removed frames wait here while Undo is on offer, then get cleaned up. */
+let pending = null;
+function removeFrames(ids){
+  finalizeRemoval();
+  const gone = [];
+  state.items.forEach((it, at) => { if (ids.includes(it.id)) gone.push({ it, at }); });
+  if (!gone.length) return;
+  state.items = state.items.filter(it => !ids.includes(it.id));
+  gone.forEach(({ it }) => { if (it.type === 'video') it.el.pause(); });
+  pending = { gone, timer: setTimeout(finalizeRemoval, 15000) };
+  scheduleSheet();
+  say(gone.length === 1 ? `Removed frame ${String(gone[0].at + 1).padStart(2, '0')}.` : `Cleared ${gone.length} frames.`, 'info', { label: 'Undo', run: undoRemoval });
+}
+function undoRemoval(){
+  if (!pending) return;
+  const { gone, timer } = pending; clearTimeout(timer); pending = null;
+  gone.forEach(({ it, at }) => state.items.splice(Math.min(at, state.items.length), 0, it));
+  scheduleSheet();
+  say(gone.length === 1 ? 'Frame put back.' : `Put back ${gone.length} frames.`);
+}
+function finalizeRemoval(){
+  if (!pending) return;
+  const { gone, timer } = pending; clearTimeout(timer); pending = null;
+  gone.forEach(({ it }) => disposeItem(it));
+  forgetItems(gone.map(({ it }) => it.id));
+  $('#status .undo')?.remove();
 }
 
 let sheetQueued = false;
@@ -586,18 +709,24 @@ function renderSheet(){
   const n = state.items.length;
   $('#count').textContent = n ? `${n} ${n === 1 ? 'frame' : 'frames'}` : '';
   $('#emptySheet').hidden = !!n; $('#sheetTools').hidden = !n;
+  $('#sheetHint').hidden = !n; $('#keptNote').hidden = !keepOn;
   state.items.forEach((it, i) => {
-    const num = i + 1;
+    const num = i + 1, cap = it.caption.trim();
     const f = document.createElement('figure');
     f.className = 'frame'; f.dataset.id = it.id;
-    f.innerHTML = `<img alt="" src="${it.thumb}">` +
-      (it.type === 'video' ? `<span class="clip">Clip ${fmtDur(it.duration)}</span>` : '') +
+    f.innerHTML = `<button type="button" class="fpic" data-act="edit"><img alt="" src="${it.thumb}">` +
+      (it.type === 'video' ? `<span class="clip">Clip ${fmtDur(it.duration)}${it.mute ? ' · muted' : ''}</span>` : '') +
+      (it.hold ? '<span class="chip">Longer</span>' : '') +
+      `<span class="fcaption" hidden></span></button>` +
       `<div class="fcap"><span class="fnum">${String(num).padStart(2,'0')}</span><div class="fbtns">` +
       `<button type="button" data-act="left" aria-label="Move frame ${num} earlier">‹</button>` +
       `<button type="button" data-act="right" aria-label="Move frame ${num} later">›</button>` +
       `<button type="button" data-act="remove" aria-label="Remove frame ${num}">×</button></div></div>`;
+    if (cap){ const c = f.querySelector('.fcaption'); c.textContent = cap; c.hidden = false; }
+    f.querySelector('.fpic').setAttribute('aria-label', `Edit frame ${num}${cap ? `, “${cap}”` : ''}`);
     grid.appendChild(f);
   });
+  keepOrder();
 }
 
 $('#frames').addEventListener('click', e => {
@@ -605,12 +734,21 @@ $('#frames').addEventListener('click', e => {
   const id = +b.closest('.frame').dataset.id;
   const i = state.items.findIndex(x => x.id === id); if (i < 0) return;
   const act = b.dataset.act;
-  if (act === 'remove'){ const [it] = state.items.splice(i, 1); disposeItem(it); }
-  else {
-    const j = act === 'left' ? i - 1 : i + 1;
-    if (j < 0 || j >= state.items.length) return;
-    [state.items[i], state.items[j]] = [state.items[j], state.items[i]];
+  if (act === 'edit'){
+    // Ignore only the click that ends a drag; any fresh press clears this.
+    const endsDrag = dragJustEnded && performance.now() - lastDragEnd < 400;
+    dragJustEnded = false;
+    if (!endsDrag) openEditor(state.items[i]);
+    return;
   }
+  if (act === 'remove'){
+    removeFrames([id]);
+    requestAnimationFrame(() => { const rm = $$('.frame button[data-act="remove"]'); (rm[i] || rm[i - 1])?.focus(); });
+    return;
+  }
+  const j = act === 'left' ? i - 1 : i + 1;
+  if (j < 0 || j >= state.items.length) return;
+  [state.items[i], state.items[j]] = [state.items[j], state.items[i]];
   scheduleSheet();
   requestAnimationFrame(() => { $(`.frame[data-id="${id}"] button[data-act="${act}"]`)?.focus(); });
 });
@@ -628,9 +766,8 @@ $('#shuffle').addEventListener('click', () => {
   scheduleSheet();
 });
 $('#clear').addEventListener('click', () => {
-  if (!state.items.length || !confirm('Remove every frame from the contact sheet?')) return;
-  state.items.forEach(disposeItem); state.items = [];
-  scheduleSheet(); say('Contact sheet cleared.');
+  if (state.unrestored.length){ forgetItems(state.unrestored); state.unrestored = []; }
+  if (state.items.length) removeFrames(state.items.map(it => it.id));
 });
 
 async function addFiles(files){
@@ -669,9 +806,11 @@ document.addEventListener('drop', e => {
 
 /* Drag frames to reorder. Mouse drags straight away; touch needs a short press so swipes still scroll. */
 const grid = $('#frames');
-let drag = null;
+let drag = null, lastDragEnd = 0, dragJustEnded = false;
 grid.addEventListener('pointerdown', e => {
-  if (drag || (e.pointerType === 'mouse' && e.button !== 0) || e.target.closest('button')) return;
+  dragJustEnded = false;
+  const btn = e.target.closest('button');
+  if (drag || (e.pointerType === 'mouse' && e.button !== 0) || (btn && !btn.classList.contains('fpic'))) return;
   const f = e.target.closest('.frame'); if (!f) return;
   drag = { f, pid: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false, touch: e.pointerType !== 'mouse' };
   if (drag.touch) drag.timer = setTimeout(liftFrame, 300);
@@ -717,6 +856,7 @@ function endDrag(){
   const d = drag; drag = null;
   clearTimeout(d.timer);
   if (!d.on) return;
+  lastDragEnd = performance.now(); dragJustEnded = true;
   d.ghost.remove(); d.f.classList.remove('lifting');
   const byId = new Map(state.items.map(it => [it.id, it]));
   const next = [...grid.children].map(el => byId.get(+el.dataset.id)).filter(Boolean);
@@ -724,13 +864,150 @@ function endDrag(){
   scheduleSheet();
 }
 
+/* ============ Keeping the sheet between visits ============ */
+// Frames, their edits and the music track live in IndexedDB, so a reload (or a phone dropping the tab) loses nothing.
+let keepOn = true, keepWarned = false, dbPromise = null, seqDone, restoreFinished;
+const seqReady = new Promise(r => seqDone = r), restoreDone = new Promise(r => restoreFinished = r);
+function openDb(){
+  dbPromise ??= new Promise((res, rej) => {
+    const r = indexedDB.open('spool', 1);
+    r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('items', { keyPath: 'id' }); d.createObjectStore('blobs'); d.createObjectStore('meta'); };
+    r.onsuccess = () => {
+      const d = r.result;
+      d.onclose = () => { dbPromise = null; };
+      d.onversionchange = () => { d.close(); dbPromise = null; };
+      res(d);
+    };
+    r.onerror = () => rej(r.error);
+    r.onblocked = () => rej(new Error('blocked'));
+  });
+  return dbPromise;
+}
+async function dbRun(stores, mode, fn, retry = true){
+  if (!keepOn) throw new Error('off');
+  const d = await openDb();
+  try {
+    return await new Promise((res, rej) => {
+      const t = d.transaction(stores, mode), req = fn(t);
+      t.oncomplete = () => res(req?.result);
+      t.onerror = t.onabort = () => rej(t.error || new Error('aborted'));
+    });
+  } catch (e){
+    // Safari can drop the connection while a tab sits in the background; reopen once and try again.
+    if (!retry || e?.name === 'QuotaExceededError' || e?.name === 'DataCloneError') throw e;
+    dbPromise = null;
+    return dbRun(stores, mode, fn, false);
+  }
+}
+// Only one tab keeps the sheet, so two open tabs can't overwrite each other's frames.
+function claimSheet(){
+  if (!navigator.locks?.request) return Promise.resolve(true);
+  return new Promise(res => {
+    let opts = { ifAvailable: true };
+    // Wait a moment rather than giving up at once, in case the tab that holds it is this one, reloading.
+    try { if (AbortSignal.timeout) opts = { signal: AbortSignal.timeout(1500) }; } catch {}
+    navigator.locks.request('spool-sheet', opts, lock => {
+      if (!lock){ res(false); return; }
+      res(true);
+      return new Promise(() => {}); // Held until this tab closes.
+    }).catch(e => res(!['AbortError', 'TimeoutError'].includes(e?.name))); // Timed out waiting: another tab has it.
+  });
+}
+const dbGet = (store, key) => dbRun(store, 'readonly', t => t.objectStore(store).get(key));
+
+function keepFailed(e){
+  if (keepWarned || !keepOn) return;
+  keepWarned = true;
+  say(e?.name === 'QuotaExceededError' ? "This browser is out of room, so some frames won't come back after a reload." : "This browser couldn't save your sheet, so it may not come back after a reload.", 'error');
+}
+function keepItem(it, withBlob){
+  clearTimeout(it.keepTimer);
+  const rec = { id: it.id, order: it.order, type: it.type, name: it.name, date: it.date ? +it.date : null, fx: it.fx, fy: it.fy, caption: it.caption, hold: it.hold, clipIn: it.clipIn, mute: it.mute, gid: it.gid };
+  return dbRun(withBlob ? ['items', 'blobs'] : 'items', 'readwrite', t => {
+    t.objectStore('items').put(rec);
+    if (withBlob) t.objectStore('blobs').put(it.blob, it.id);
+  }).catch(keepFailed);
+}
+function keepItemSoon(it){ clearTimeout(it.keepTimer); it.keepTimer = setTimeout(() => keepItem(it), 400); }
+function forgetItems(ids){
+  if (!ids.length) return;
+  dbRun(['items', 'blobs'], 'readwrite', t => ids.forEach(id => { t.objectStore('items').delete(id); t.objectStore('blobs').delete(id); })).catch(() => {});
+}
+let orderTimer = null;
+function keepOrder(){
+  if (state.restoring) return;
+  clearTimeout(orderTimer);
+  orderTimer = setTimeout(() => {
+    const ids = [...state.items.map(it => it.id), ...state.unrestored];
+    dbRun('meta', 'readwrite', t => t.objectStore('meta').put({ ids, seq: state.seq }, 'sheet')).catch(() => {});
+  }, 150);
+}
+function keepTrack(blob){
+  const meta = { name: state.trackName, start: +$('#musicStart').value || 0 };
+  dbRun(blob ? ['meta', 'blobs'] : 'meta', 'readwrite', t => { t.objectStore('meta').put(meta, 'track'); if (blob) t.objectStore('blobs').put(blob, 'track'); }).catch(keepFailed);
+}
+function forgetTrack(){
+  dbRun(['meta', 'blobs'], 'readwrite', t => { t.objectStore('meta').delete('track'); t.objectStore('blobs').delete('track'); }).catch(() => {});
+}
+
+async function restoreSheet(){
+  if (!(await claimSheet())){
+    keepOn = false; seqDone(); state.restoring = false; renderSheet(); restoreFinished();
+    say("Spool is open in another tab, so this tab won't remember its sheet after a reload.");
+    return;
+  }
+  const giveUp = setTimeout(() => { keepOn = false; seqDone(); restoreFinished(); }, 5000);
+  let sheet = null, recs = [], track = null;
+  try {
+    [sheet, recs, track] = await Promise.all([
+      dbGet('meta', 'sheet'),
+      dbRun('items', 'readonly', t => t.objectStore('items').getAll()),
+      dbGet('meta', 'track')
+    ]);
+  } catch { keepOn = false; }
+  clearTimeout(giveUp);
+  const ids = keepOn && Array.isArray(sheet?.ids) ? sheet.ids.filter(id => typeof id === 'number') : [];
+  if (keepOn) state.seq = Math.max(state.seq, numOr(sheet?.seq, 0), ...ids);
+  seqDone();
+  if (!keepOn){ state.restoring = false; renderSheet(); restoreFinished(); return; }
+  if (typeof track?.name === 'string') dbGet('blobs', 'track').then(b => b && loadTrack(b, track.name, track)).catch(() => {});
+  const byId = new Map((recs || []).map(r => [r.id, r]));
+  let back = 0, lost = 0;
+  for (const id of ids){
+    const r = byId.get(id);
+    const blob = r ? await dbGet('blobs', id).catch(() => null) : null;
+    if (!blob){ lost++; continue; }
+    try {
+      await addMedia({ blob, type: r.type === 'video' ? 'video' : 'photo', date: typeof r.date === 'number' ? new Date(r.date) : null, name: String(r.name || 'Frame'), saved: r });
+      back++;
+    } catch { lost++; state.unrestored.push(id); } // Kept for next time, in case this browser just couldn't open it now.
+    if (ids.length > 3) say(`Bringing back your sheet… ${back + lost} of ${ids.length}`);
+  }
+  state.restoring = false; restoreFinished();
+  keepOrder(); pruneStore();
+  if (ids.length) say(lost ? `Brought back ${back} of ${ids.length} frames from last time.` : `Brought back ${back} ${back === 1 ? 'frame' : 'frames'} from last time.`, lost ? 'error' : 'info');
+}
+async function pruneStore(){
+  try {
+    const [a, b] = await Promise.all([
+      dbRun('items', 'readonly', t => t.objectStore('items').getAllKeys()),
+      dbRun('blobs', 'readonly', t => t.objectStore('blobs').getAllKeys())
+    ]);
+    const live = new Set([...state.items.map(it => it.id), ...state.unrestored]);
+    pending?.gone.forEach(({ it }) => live.add(it.id));
+    forgetItems([...new Set([...a, ...b])].filter(k => typeof k === 'number' && !live.has(k)));
+  } catch {}
+}
+
 /* ============ Drawing primitives ============ */
-function coverDraw(ctx, el, iw, ih, x, y, w, h, zoom=1, px=0, py=0){
+function coverDraw(ctx, it, x, y, w, h, zoom=1, px=0, py=0){
+  const { el, w: iw, h: ih } = it;
+  if (el.tagName === 'VIDEO' && el.readyState < 2) return;
   const s = Math.max(w/iw, h/ih) * zoom;
   const dw = iw*s, dh = ih*s;
-  const dx = x + (w - dw)/2 + px*(dw - w)/2;
-  const dy = y + (h - dh)/2 + py*(dh - h)/2;
-  if (el.tagName === 'VIDEO' && el.readyState < 2) return;
+  // Centre on the frame's focus point, add any drift, then keep the picture covering the whole box.
+  const dx = clamp(x + w/2 - (it.fx ?? .5)*dw + px*(dw - w)/2, x + w - dw, x);
+  const dy = clamp(y + h/2 - (it.fy ?? .5)*dh + py*(dh - h)/2, y + h - dh, y);
   ctx.drawImage(el, dx, dy, dw, dh);
 }
 function roundRectPath(ctx, x, y, w, h, r){
@@ -767,7 +1044,8 @@ function readReelOpts(){
     sub: $('#rsub').value.trim(),
     end: $('#rend').value.trim(),
     clipSound: $('#clipSound').checked,
-    duck: $('#duck').checked
+    duck: $('#duck').checked,
+    musicStart: state.audioBuf && !$('#musicStartRow').hidden ? +$('#musicStart').value || 0 : 0
   };
 }
 
@@ -787,12 +1065,15 @@ function buildTimeline(o){
       const y = it.date.getFullYear();
       if (y !== year){ push({ kind:'year', dur: 1.8, text: String(y), bg: it }); year = y; }
     }
-    let dur = shot;
+    const base = shot * (it.hold ? 2 : 1);
+    let dur = base;
     if (it.type === 'video'){
-      const want = Math.min(it.duration || shot, shot * (o.style === 'montage' ? 2 : 1.6));
+      const avail = Math.max(0.5, (it.duration || base) - (it.clipIn ?? 0));
+      const want = Math.min(avail, base * (o.style === 'montage' ? 2 : 1.6));
       dur = o.style === 'montage' ? Math.max(1, Math.round(want / beat)) * beat : Math.max(shot, want);
     }
-    push({ kind:'shot', dur, item: it, clipStart: it.type === 'video' ? Math.max(0, ((it.duration || 0) - dur) * 0.3) : 0 });
+    const clipStart = it.type !== 'video' ? 0 : (it.clipIn ?? Math.max(0, ((it.duration || 0) - dur) * 0.3));
+    push({ kind:'shot', dur, item: it, clipStart });
   });
   if (o.end) push({ kind:'end', dur: o.style === 'montage' ? beat * 4 : 3, bg: list[list.length - 1] });
   return { segs, total: t, fade };
@@ -839,6 +1120,21 @@ function dateCaption(ctx, W, H, text, alpha){
   ctx.restore();
 }
 
+function shotCaption(ctx, W, H, text, alpha, dated){
+  const base = Math.min(W, H), size = base * 0.06, lh = size * 1.14;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.font = `800 ${size}px Archivo, system-ui, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = size * .45; ctx.shadowOffsetY = size * .05;
+  ctx.fillStyle = '#FFFFFF';
+  const lines = wrapLines(ctx, text, W * 0.84).slice(0, 3);
+  // Clear of app buttons at the bottom of vertical reels, and above the date line in Story mode.
+  let y = H - Math.max(base * 0.075, H * 0.1) - (dated && W >= H ? base * 0.07 : 0) - (lines.length - 1) * lh;
+  lines.forEach(l => { ctx.fillText(l, W/2, y); y += lh; });
+  ctx.restore();
+}
+
 function drawSeg(ctx, W, H, seg, t, o, alpha){
   if (alpha <= 0) return;
   const local = t - seg.start;
@@ -849,18 +1145,22 @@ function drawSeg(ctx, W, H, seg, t, o, alpha){
     ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
     if (o.style === 'montage'){
       const k = 1 - Math.min(1, Math.max(0, local) / Math.min(0.35, seg.dur));
-      coverDraw(ctx, it.el, it.w, it.h, 0, 0, W, H, 1.02 + 0.1 * k * k, 0, 0);
+      coverDraw(ctx, it, 0, 0, W, H, 1.02 + 0.1 * k * k);
       if (local >= 0 && local < 0.09){ ctx.fillStyle = `rgba(255,255,255,${(1 - local/0.09) * 0.22})`; ctx.fillRect(0, 0, W, H); }
     } else {
       const m = getMotion(it, o.style), e = ease(p);
-      coverDraw(ctx, it.el, it.w, it.h, 0, 0, W, H, lerp(m.za, m.zb, e), lerp(m.ax, m.bx, e), lerp(m.ay, m.by, e));
+      const drift = it.fx === .5 && it.fy === .5 ? 1 : 0.35; // Gentler drift once a focus point is set, so it stays in view.
+      coverDraw(ctx, it, 0, 0, W, H, lerp(m.za, m.zb, e), lerp(m.ax, m.bx, e) * drift, lerp(m.ay, m.by, e) * drift);
     }
-    if (o.style === 'story' && it.date) dateCaption(ctx, W, H, fmtDate(it.date), clamp(local / 0.5, 0, 1));
+    const dated = o.style === 'story' && !!it.date;
+    if (dated) dateCaption(ctx, W, H, fmtDate(it.date), clamp(local / 0.5, 0, 1));
+    const cap = it.caption.trim();
+    if (cap) shotCaption(ctx, W, H, cap, clamp((local - 0.1) / 0.4, 0, 1), dated);
   } else {
     ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
     const bg = seg.bg;
     if (bg){
-      coverDraw(ctx, bg.el, bg.w, bg.h, 0, 0, W, H, 1.15 + 0.06 * p, 0, 0);
+      coverDraw(ctx, bg, 0, 0, W, H, 1.15 + 0.06 * p);
       ctx.fillStyle = 'rgba(17,24,34,.64)'; ctx.fillRect(0, 0, W, H);
     }
     const big = seg.kind === 'title' ? o.title : seg.kind === 'end' ? o.end : seg.text;
@@ -935,7 +1235,7 @@ function unlockClips(){
 }
 
 function setupAudio(tl, o){
-  const clips = o.clipSound ? tl.segs.filter(s => s.kind === 'shot' && s.item.type === 'video') : [];
+  const clips = o.clipSound ? tl.segs.filter(s => s.kind === 'shot' && s.item.type === 'video' && !s.item.mute) : [];
   if (!state.audioBuf && !clips.length) return null;
   const actx = ensureActx();
   const dest = actx.createMediaStreamDestination();
@@ -981,7 +1281,7 @@ function setupAudio(tl, o){
           music.gain.linearRampToValueAtTime(1, now + d.b);
         }
       }
-      src?.start(now);
+      src?.start(now, clamp(o.musicStart, 0, Math.max(0, state.audioBuf.duration - 0.05)));
     },
     stop(){
       try { src?.stop(); } catch {}
@@ -1004,6 +1304,14 @@ function setIdleUI(){
   $('#record').disabled = false; $('#preview').disabled = false;
   $$('#reelOpts input, #reelOpts select').forEach(el => el.disabled = false);
   $('#progress').value = 0;
+  $('#reelClock').textContent = '';
+}
+
+/* Keep a phone screen from locking mid-recording, which would freeze the video. */
+let wake = null;
+function keepAwake(on){
+  if (on){ if (!wake && navigator.wakeLock) wake = navigator.wakeLock.request('screen').catch(() => null); }
+  else if (wake){ const w = wake; wake = null; w.then(l => l?.release()).catch(() => {}); }
 }
 
 async function runReel(record){
@@ -1035,12 +1343,14 @@ async function runReel(record){
   if (record) document.addEventListener('visibilitychange', onVis);
   state.running = { stop(){ stopped = true; } };
   setRunningUI(record);
+  keepAwake(true);
   say(record ? 'Recording. Keep this tab on screen…' : 'Previewing…');
 
   drawFrame(ctx, W, H, tl, 0, o);
   rec?.start(250);
   audio?.start();
   const t0 = performance.now();
+  let shownSec = -1;
   await new Promise(resolve => {
     const tick = () => {
       const t = (performance.now() - t0) / 1000;
@@ -1048,6 +1358,7 @@ async function runReel(record){
       syncVideos(tl, t);
       drawFrame(ctx, W, H, tl, t, o);
       $('#progress').value = t / tl.total;
+      if (Math.floor(t) !== shownSec){ shownSec = Math.floor(t); $('#reelClock').textContent = `${fmtDur(shownSec)} of ${fmtDur(tl.total)}`; }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -1056,6 +1367,7 @@ async function runReel(record){
   state.items.forEach(it => { if (it.type === 'video') it.el.pause(); });
   audio?.stop();
   document.removeEventListener('visibilitychange', onVis);
+  keepAwake(false);
   state.running = null; setIdleUI();
 
   if (rec){
@@ -1105,15 +1417,15 @@ function drawPoster(){
     ctx.fillText('Add photos to see a preview', W/2, H/2);
     return;
   }
-  drawFrame(ctx, W, H, tl, tl.segs[0].kind === 'shot' ? 0.3 : Math.min(1, tl.segs[0].dur * 0.5), o);
+  drawFrame(ctx, W, H, tl, Math.min(tl.segs[0].kind === 'shot' ? 0.6 : 1, tl.segs[0].dur * 0.5), o);
 }
 
 function updateLen(){
   const el = $('#reelLen');
   if (!state.items.length){ el.textContent = ''; return; }
-  const tl = buildTimeline(readReelOpts());
+  const o = readReelOpts(), tl = buildTimeline(o);
   let msg = `Runs about ${Math.round(tl.total)} seconds.`;
-  if (state.audioBuf && state.audioBuf.duration < tl.total) msg += ' That is longer than the track, so the ending will be silent.';
+  if (state.audioBuf && state.audioBuf.duration - o.musicStart < tl.total) msg += ' That is longer than the track, so the ending will be silent.';
   el.textContent = msg;
 }
 
@@ -1131,12 +1443,12 @@ function syncClipControls(){
 }
 
 /* Tempo */
-function guessBpm(buf){
-  const data = buf.getChannelData(0), sr = buf.sampleRate, hop = Math.round(sr / 100);
-  const n = Math.min(Math.floor(data.length / hop), 6000);
+function guessBpm(buf, from = 0){
+  const data = buf.getChannelData(0), sr = buf.sampleRate, hop = Math.round(sr / 100), o0 = Math.floor(from * sr);
+  const n = Math.min(Math.floor((data.length - o0) / hop), 6000);
   if (n < 200) return 100;
   const env = new Float32Array(n);
-  for (let i = 0; i < n; i++){ let s = 0; const o = i*hop; for (let j = 0; j < hop; j++){ const v = data[o+j]; s += v*v; } env[i] = Math.sqrt(s / hop); }
+  for (let i = 0; i < n; i++){ let s = 0; const o = o0 + i*hop; for (let j = 0; j < hop; j++){ const v = data[o+j]; s += v*v; } env[i] = Math.sqrt(s / hop); }
   const on = new Float32Array(n);
   for (let i = 1; i < n; i++) on[i] = Math.max(0, env[i] - env[i-1]);
   let best = 0, bestLag = 60;
@@ -1144,6 +1456,15 @@ function guessBpm(buf){
   let bpm = 6000 / bestLag;
   while (bpm < 80) bpm *= 2; while (bpm > 165) bpm /= 2;
   return Math.round(bpm);
+}
+
+// Where the music actually begins, so a track with silence up front doesn't start the reel quietly.
+function firstSound(buf){
+  const d = buf.getChannelData(0), sr = buf.sampleRate, lim = Math.min(d.length, sr * 20);
+  let peak = 0; for (let i = 0; i < lim; i++){ const v = Math.abs(d[i]); if (v > peak) peak = v; }
+  const th = Math.max(0.005, peak * 0.06);
+  for (let i = 0; i < lim; i++) if (Math.abs(d[i]) > th){ const t = i / sr - 0.03; return t < 0.25 ? 0 : Math.floor(t * 10) / 10; }
+  return 0;
 }
 
 $('#tap').addEventListener('click', () => {
@@ -1154,38 +1475,53 @@ $('#tap').addEventListener('click', () => {
     const iv = []; for (let i = 1; i < ts.length; i++) iv.push(ts[i] - ts[i-1]);
     const recent = iv.slice(-4);
     $('#bpm').value = Math.round(60000 / (recent.reduce((a,b) => a + b, 0) / recent.length));
-    refreshOutputs();
+    refreshOutputs(); savePrefs();
   }
   say(ts.length < 2 ? 'Keep tapping along to the beat.' : `Tempo set to ${$('#bpm').value} BPM.`);
 });
 
-$('#music').addEventListener('change', async e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
-  const actx = ensureActx();
-  say('Reading the track…');
+async function loadTrack(blob, name, saved){
+  if (!saved) say('Reading the track…');
   try {
-    const ab = await f.arrayBuffer();
-    state.audioBuf = await new Promise((res, rej) => actx.decodeAudioData(ab, res, rej));
-    const bpm = guessBpm(state.audioBuf);
-    $('#bpm').value = bpm;
-    $('#musicName').textContent = `${f.name} (${fmtDur(state.audioBuf.duration)})`;
+    const ab = await blob.arrayBuffer();
+    const ctx = saved ? (state.actx || new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, 44100)) : ensureActx();
+    const buf = await new Promise((res, rej) => ctx.decodeAudioData(ab, res, rej));
+    if (saved && state.audioBuf) return; // A track picked while the saved one was loading wins.
+    state.audioBuf = buf; state.trackName = name;
+    const maxStart = Math.max(0, Math.floor((buf.duration - 5) * 10) / 10);
+    const start = saved ? clamp(numOr(saved.start, 0), 0, maxStart) : Math.min(firstSound(buf), maxStart);
+    const ms = $('#musicStart'); ms.max = String(maxStart); ms.value = String(start);
+    $('#musicStartOut').textContent = fmtClock(start);
+    $('#musicStartRow').hidden = maxStart < 1;
+    $('#musicName').textContent = `${name} (${fmtDur(buf.duration)})`;
     $('#musicClear').hidden = false;
-    say(`Track loaded. Tempo guessed at ${bpm} BPM. Use Tap tempo if it feels off.`);
+    if (!saved){
+      const bpm = guessBpm(buf, start);
+      $('#bpm').value = bpm; savePrefs();
+      keepTrack(blob);
+      say(`Track loaded. Tempo guessed at ${bpm} BPM.${start ? ` It starts at the first sound, ${fmtClock(start)} in.` : ''} Use Tap tempo if the beat feels off.`);
+    }
     refreshOutputs();
   } catch {
-    say("That audio file couldn't be read. Try an MP3 or M4A.", 'error');
+    if (!saved) say("That audio file couldn't be read. Try an MP3 or M4A.", 'error');
   }
+}
+$('#music').addEventListener('change', e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (f) loadTrack(f, f.name);
 });
+$('#musicStart').addEventListener('input', () => { $('#musicStartOut').textContent = fmtClock(+$('#musicStart').value); });
+$('#musicStart').addEventListener('change', () => keepTrack(null));
 $('#musicClear').addEventListener('click', () => {
-  state.audioBuf = null;
+  state.audioBuf = null; state.trackName = '';
   $('#musicName').textContent = 'No track yet';
-  $('#musicClear').hidden = true; refreshOutputs();
+  $('#musicClear').hidden = true; $('#musicStartRow').hidden = true;
+  forgetTrack(); refreshOutputs();
 });
 
 $('#preview').addEventListener('click', () => { ensureActx(); if (!state.running) unlockClips(); runReel(false); });
 $('#record').addEventListener('click', () => { ensureActx(); if (!state.running) unlockClips(); runReel(true); });
-$('#reelOpts').addEventListener('input', () => { syncReelControls(); refreshOutputs(); });
+$('#reelOpts').addEventListener('input', () => { syncReelControls(); refreshOutputs(); savePrefsSoon(); });
 $('#reelOpts').addEventListener('change', () => { syncReelControls(); refreshOutputs(); savePrefs(); });
 
 /* ============ Collage ============ */
@@ -1211,14 +1547,20 @@ function drawCell(ctx, it, x, y, w, h, rad, dates){
   ctx.save();
   roundRectPath(ctx, x, y, w, h, rad); ctx.clip();
   ctx.fillStyle = '#26303D'; ctx.fillRect(x, y, w, h);
-  coverDraw(ctx, it.el, it.w, it.h, x, y, w, h, 1, 0, 0);
-  if (dates && it.date){
+  coverDraw(ctx, it, x, y, w, h);
+  const cap = it.caption.trim(), dt = dates && it.date ? fmtDate(it.date) : '';
+  if (cap || dt){
     const size = clamp(Math.min(w, h) * 0.07, 22, 64);
-    ctx.font = `700 ${size}px Archivo, system-ui, sans-serif`;
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = size * .5;
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(fmtDate(it.date), x + size*0.7, y + h - size*0.7);
+    let yy = y + h - size*0.7;
+    if (dt){ ctx.font = `700 ${size}px Archivo, system-ui, sans-serif`; ctx.fillText(dt, x + size*0.7, yy); yy -= size * 1.3; }
+    if (cap){
+      ctx.font = `800 ${size * 1.1}px Archivo, system-ui, sans-serif`;
+      const lines = wrapLines(ctx, cap, w - size * 1.4).slice(0, 2);
+      for (let k = lines.length - 1; k >= 0; k--){ ctx.fillText(lines[k], x + size*0.7, yy); yy -= size * 1.3; }
+    }
   }
   ctx.restore();
 }
@@ -1259,13 +1601,23 @@ function drawPolaroid(ctx, it, cx, cy, s, rot, dates){
   ctx.shadowColor = 'transparent';
   ctx.save(); ctx.beginPath(); ctx.rect(-fw/2 + m, -fh/2 + m, ph, ph); ctx.clip();
   ctx.fillStyle = '#26303D'; ctx.fillRect(-fw/2 + m, -fh/2 + m, ph, ph);
-  coverDraw(ctx, it.el, it.w, it.h, -fw/2 + m, -fh/2 + m, ph, ph, 1, 0, 0);
+  coverDraw(ctx, it, -fw/2 + m, -fh/2 + m, ph, ph);
   ctx.restore();
-  if (dates && it.date){
-    const top = -fh/2 + m + ph;
+  const cap = it.caption.trim(), dt = dates && it.date ? fmtDate(it.date) : '';
+  const top = -fh/2 + m + ph, band = fh/2 - top;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (cap){
+    // Handwritten on the white strip, shrunk to fit, with the date underneath when dates are on.
+    let size = s * (dt ? 0.085 : 0.1);
+    const font = () => `700 ${size}px Caveat, cursive`;
+    ctx.font = font();
+    while (ctx.measureText(cap).width > fw - 2*m && size > 6){ size *= 0.92; ctx.font = font(); }
+    ctx.fillStyle = '#2A3340';
+    ctx.fillText(cap, 0, dt ? top + band * 0.4 : top + band / 2);
+    if (dt){ ctx.fillStyle = '#5E6A7A'; ctx.font = `600 ${s * 0.06}px Caveat, cursive`; ctx.fillText(dt, 0, top + band * 0.76); }
+  } else if (dt){
     ctx.fillStyle = '#2A3340'; ctx.font = `600 ${s * 0.09}px Caveat, cursive`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(fmtDate(it.date), 0, (top + fh/2) / 2);
+    ctx.fillText(dt, 0, top + band / 2);
   }
   ctx.restore();
 }
@@ -1277,14 +1629,16 @@ function polaroidLayout(ctx, a, list, dates){
   const g = bestGrid(n, inner.w, inner.h, 0);
   const s = Math.min(g.cw, g.ch / 1.2) * 1.12;
   const r = rng(n * 7919 + 13);
-  list.forEach((it, i) => {
+  const prints = list.map((it, i) => {
     const row = Math.floor(i / g.c), col = i % g.c;
     const inRow = row === g.r - 1 ? n - row * g.c : g.c;
     const cw = inner.w / inRow;
     const cx = inner.x + cw*(col + 0.5) + (r() - 0.5) * g.cw * 0.18;
     const cy = inner.y + g.ch*(row + 0.5) + (r() - 0.5) * g.ch * 0.18;
-    drawPolaroid(ctx, it, cx, cy, s, (r() - 0.5) * 0.24, dates);
+    return { it, cx, cy, rot: (r() - 0.5) * 0.24 };
   });
+  // Lay the last print down first, so each print's caption strip rests on top of the one below it, and frame 01 is on top.
+  prints.reverse().forEach(p => drawPolaroid(ctx, p.it, p.cx, p.cy, s, p.rot, dates));
 }
 
 function collageBg(){
@@ -1348,11 +1702,11 @@ function syncCollageControls(){
   $('#cbg').hidden = $('#cbgPreset').value !== 'custom';
   $('#layoutHint').textContent = layoutHints[$('input[name=clayout]:checked').value];
 }
-$('#collageOpts').addEventListener('input', () => { syncCollageControls(); scheduleCollage(); });
+$('#collageOpts').addEventListener('input', () => { syncCollageControls(); scheduleCollage(); savePrefsSoon(); });
 $('#collageOpts').addEventListener('change', () => { syncCollageControls(); scheduleCollage(); savePrefs(); });
 
 /* ============ Remembered choices ============ */
-const PREF_IDS = ['secs', 'beats', 'cbgPreset', 'cbg', 'cgap'], PREF_CHECKS = ['cround', 'cdates', 'clipSound', 'duck'];
+const PREF_IDS = ['secs', 'beats', 'bpm', 'rtitle', 'rsub', 'rend', 'cbgPreset', 'cbg', 'cgap', 'ctitle'], PREF_CHECKS = ['cround', 'cdates', 'clipSound', 'duck'];
 function savePrefs(){
   const p = {};
   $$('#reelOpts input[type=radio]:checked, #collageOpts input[type=radio]:checked').forEach(r => p[r.name] = r.value);
@@ -1360,6 +1714,8 @@ function savePrefs(){
   PREF_CHECKS.forEach(id => p[id] = $('#' + id).checked);
   store.set(PREFS_KEY, JSON.stringify(p));
 }
+let prefsTimer = null;
+function savePrefsSoon(){ clearTimeout(prefsTimer); prefsTimer = setTimeout(savePrefs, 400); }
 function loadPrefs(){
   let p; try { p = JSON.parse(store.get(PREFS_KEY) || '{}'); } catch { return; }
   if (!p || typeof p !== 'object') return;
@@ -1375,6 +1731,117 @@ function loadPrefs(){
   });
   PREF_CHECKS.forEach(id => { if (typeof p[id] === 'boolean') $('#' + id).checked = p[id]; });
 }
+
+/* ============ Frame editor ============ */
+const ed = { it: null, pressing: false, thumbAfterSeek: false };
+const edCv = $('#edCanvas');
+const SHAPE_WORDS = { vertical: 'a vertical reel', square: 'a square reel', wide: 'a wide reel' };
+
+function openEditor(it){
+  if (state.running){ say('Stop the reel first, then tap a frame to edit it.'); return; }
+  ed.it = it;
+  $('#h-editor').textContent = `Frame ${String(state.items.indexOf(it) + 1).padStart(2, '0')}`;
+  $('#edShape').textContent = SHAPE_WORDS[readReelOpts().shape];
+  $('#edCaption').value = it.caption;
+  $('#edHold').checked = it.hold;
+  $('#edClip').hidden = it.type !== 'video';
+  if (it.type === 'video'){
+    const st = $('#edStart');
+    st.max = Math.max(0, it.duration - 0.5).toFixed(1);
+    st.value = (it.clipIn ?? autoClipStart(it)).toFixed(1);
+    $('#edMute').checked = it.mute;
+    it.el.addEventListener('seeked', onEdSeeked);
+    showClipStart(); seekClip(+st.value);
+  }
+  $('#editor').showModal();
+  sizeEditor(); drawEditor();
+}
+function autoClipStart(it){ return buildTimeline(readReelOpts()).segs.find(sg => sg.item === it)?.clipStart ?? 0; }
+function showClipStart(){ $('#edStartOut').textContent = fmtClock(+$('#edStart').value) + (ed.it.clipIn == null ? ' (auto)' : ''); }
+function seekClip(t){ try { ed.it.el.currentTime = t; } catch {} }
+function onEdSeeked(){
+  if (!ed.it) return;
+  drawEditor();
+  if (ed.thumbAfterSeek){ ed.thumbAfterSeek = false; ed.it.thumb = makeThumb(ed.it); scheduleSheet(); }
+}
+function sizeEditor(){
+  const it = ed.it; if (!it) return;
+  const maxW = Math.max(120, $('#edPic').clientWidth - 20), maxH = Math.min(innerHeight * 0.42, 420);
+  const k = Math.min(maxW / it.w, maxH / it.h), dpr = Math.min(2, devicePixelRatio || 1);
+  const w = Math.max(40, Math.round(it.w * k)), h = Math.max(40, Math.round(it.h * k));
+  edCv.style.width = w + 'px'; edCv.style.height = h + 'px';
+  edCv.width = Math.round(w * dpr); edCv.height = Math.round(h * dpr);
+}
+function drawEditor(){
+  const it = ed.it; if (!it) return;
+  const ctx = edCv.getContext('2d'), W = edCv.width, H = edCv.height, u = W / (parseFloat(edCv.style.width) || W);
+  ctx.fillStyle = '#0E141C'; ctx.fillRect(0, 0, W, H);
+  if (!(it.el.tagName === 'VIDEO' && it.el.readyState < 2)) ctx.drawImage(it.el, 0, 0, W, H);
+  // Dim what a reel of the current shape would crop away, placed exactly as coverDraw places it.
+  const [RW, RH] = REEL_SIZES[readReelOpts().shape];
+  const k = Math.max(RW / it.w, RH / it.h);
+  const cw = RW / k / it.w * W, ch = RH / k / it.h * H;
+  const cx = clamp(it.fx * W - cw / 2, 0, W - cw), cy = clamp(it.fy * H - ch / 2, 0, H - ch);
+  ctx.fillStyle = 'rgba(10,14,20,.6)';
+  ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.rect(cx, cy, cw, ch); ctx.fill('evenodd');
+  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2 * u; ctx.setLineDash([7 * u, 5 * u]);
+  ctx.strokeRect(cx + u, cy + u, cw - 2 * u, ch - 2 * u); ctx.setLineDash([]);
+  const x = it.fx * W, y = it.fy * H, r = 13 * u;
+  ctx.lineWidth = 6 * u; ctx.strokeStyle = 'rgba(10,14,20,.55)';
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 3 * u; ctx.strokeStyle = FILM;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = FILM; ctx.beginPath(); ctx.arc(x, y, 3 * u, 0, Math.PI * 2); ctx.fill();
+}
+function editChanged(thumb){
+  const it = ed.it; if (!it) return;
+  if (thumb) it.thumb = makeThumb(it);
+  scheduleSheet(); keepItemSoon(it);
+}
+function focusFrom(e){
+  const r = edCv.getBoundingClientRect();
+  ed.it.fx = clamp((e.clientX - r.left) / r.width, 0, 1);
+  ed.it.fy = clamp((e.clientY - r.top) / r.height, 0, 1);
+  drawEditor();
+}
+edCv.addEventListener('pointerdown', e => { if (!ed.it) return; ed.pressing = true; edCv.setPointerCapture?.(e.pointerId); focusFrom(e); });
+edCv.addEventListener('pointermove', e => { if (ed.pressing) focusFrom(e); });
+const endPress = () => { if (!ed.pressing) return; ed.pressing = false; editChanged(true); };
+edCv.addEventListener('pointerup', endPress);
+edCv.addEventListener('pointercancel', endPress);
+edCv.addEventListener('keydown', e => {
+  const step = e.shiftKey ? 0.1 : 0.03;
+  const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (!d || !ed.it) return;
+  e.preventDefault();
+  ed.it.fx = clamp(ed.it.fx + d[0], 0, 1); ed.it.fy = clamp(ed.it.fy + d[1], 0, 1);
+  drawEditor(); editChanged(true);
+});
+$('#edCaption').addEventListener('input', () => { if (ed.it){ ed.it.caption = $('#edCaption').value; editChanged(false); } });
+$('#edHold').addEventListener('change', () => { if (ed.it){ ed.it.hold = $('#edHold').checked; editChanged(false); } });
+$('#edMute').addEventListener('change', () => { if (ed.it){ ed.it.mute = $('#edMute').checked; editChanged(false); } });
+$('#edStart').addEventListener('input', () => {
+  if (!ed.it) return;
+  ed.it.clipIn = +$('#edStart').value;
+  showClipStart(); seekClip(ed.it.clipIn); editChanged(false);
+});
+$('#edStart').addEventListener('change', () => {
+  if (!ed.it) return;
+  ed.thumbAfterSeek = true;
+  if (!ed.it.el.seeking) onEdSeeked();
+});
+$('#edRemove').addEventListener('click', () => {
+  const it = ed.it; $('#editor').close();
+  if (it) removeFrames([it.id]);
+});
+$('#editor').addEventListener('close', () => {
+  const it = ed.it; ed.it = null; ed.pressing = false; ed.thumbAfterSeek = false;
+  if (!it) return;
+  it.el.removeEventListener('seeked', onEdSeeked);
+  if (state.items.includes(it)) keepItem(it);
+  requestAnimationFrame(() => $(`.frame[data-id="${it.id}"] .fpic`)?.focus());
+});
+addEventListener('resize', () => { if (ed.it){ sizeEditor(); drawEditor(); } });
 
 /* ============ Tabs and refresh ============ */
 function selectTab(which){
@@ -1424,7 +1891,10 @@ $('#connect').addEventListener('click', async () => {
     await prepareSession();
   } catch(e){ say(e.message, 'error'); }
 });
-$('#pickLink').addEventListener('click', () => { setTimeout(startPolling, 300); });
+$('#pickLink').addEventListener('click', () => {
+  const p = pickStore.get(); if (p){ p.opened = true; pickStore.set(p); }
+  setTimeout(startPolling, 300);
+});
 
 /* ============ Start ============ */
 $('#setupHint').hidden = !!clientId();
@@ -1434,6 +1904,8 @@ loadPrefs();
 syncReelControls(); syncCollageControls();
 renderSheet(); refreshOutputs();
 document.fonts.ready.then(refreshOutputs);
+resumePick();
+restoreSheet();
 </script>
 </body>
 </html>
