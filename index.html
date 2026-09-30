@@ -13,6 +13,7 @@
   --paper:#EEF1F4; --ink:#17202C; --film:#F0A030; --mute:#5E6A7A; --line:#C9D0D8; --white:#FFFFFF; --frame:#26303D;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font-family:'Archivo',system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.5}
 main{max-width:1000px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 16px calc(80px + env(safe-area-inset-bottom))}
@@ -46,8 +47,9 @@ input[type=number]{width:5.5em}
 .sheet::before,.sheet::after{content:"";position:absolute;left:12px;right:12px;height:9px;background:repeating-linear-gradient(90deg,#D6DDE4 0 13px,transparent 13px 27px);border-radius:2px}
 .sheet::before{top:11px}.sheet::after{bottom:11px}
 .frames{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px 10px}
-.frame{margin:0;position:relative}
-.frame img{display:block;width:100%;aspect-ratio:1;object-fit:cover;background:var(--frame);border-radius:2px}
+.frame{margin:0;position:relative;cursor:grab;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.frame.lifting{opacity:.3}
+.frame img{-webkit-user-drag:none;pointer-events:none;display:block;width:100%;aspect-ratio:1;object-fit:cover;background:var(--frame);border-radius:2px}
 .clip{position:absolute;top:6px;right:6px;background:rgba(10,14,20,.72);color:var(--white);font-size:12px;font-weight:650;padding:2px 6px;border-radius:4px}
 .fcap{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
 .fnum{color:var(--film);font-weight:750;font-stretch:70%;font-size:15px;letter-spacing:.02em}
@@ -100,6 +102,8 @@ dialog ol{padding-left:22px;margin:12px 0 18px}
 dialog li{margin-bottom:6px}
 dialog a{color:var(--ink)}
 code{font-size:.92em;background:var(--paper);padding:1px 5px;border-radius:4px;word-break:break-all}
+.drag-ghost{position:fixed;z-index:40;pointer-events:none;aspect-ratio:1;object-fit:cover;border-radius:3px;outline:3px solid var(--film);box-shadow:0 14px 30px rgba(0,0,0,.45);transform:rotate(-3deg) scale(1.08)}
+body.dropping::after{content:"Drop to add to the contact sheet";position:fixed;inset:12px;z-index:60;display:grid;place-items:center;border:4px dashed var(--film);border-radius:14px;background:rgba(23,32,44,.8);color:var(--white);font-weight:800;font-stretch:112%;font-size:clamp(22px,4vw,34px);text-align:center;padding:16px;pointer-events:none}
 #vidbin{position:fixed;left:0;bottom:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
 #vidbin video{width:2px;height:2px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
@@ -110,7 +114,7 @@ code{font-size:.92em;background:var(--paper);padding:1px 5px;border-radius:4px;w
   <header class="top">
     <div>
       <h1 class="word">Spool</h1>
-      <p class="lede">Pick photos and clips from Google Photos or this device, put them in order, then turn them into a reel or a collage.</p>
+      <p class="lede">Pick photos and clips from Google Photos or this device (or drop them anywhere on the page), put them in order, then turn them into a reel or a collage.</p>
     </div>
     <button class="btn ghost small" id="openSettings" type="button">Google setup</button>
   </header>
@@ -140,7 +144,7 @@ code{font-size:.92em;background:var(--paper);padding:1px 5px;border-radius:4px;w
       <button class="btn ghost small" id="clear" type="button">Clear all</button>
     </div>
     <div class="sheet">
-      <p id="emptySheet" class="empty">Your picks land here, in the order they'll play. Use ‹ and › under a frame to move it.</p>
+      <p id="emptySheet" class="empty">Your picks land here, in the order they'll play. Drag a frame to move it, or use ‹ and › under it.</p>
       <div id="frames" class="frames"></div>
     </div>
   </section>
@@ -309,6 +313,8 @@ const PICKER_API = 'https://photospicker.googleapis.com/v1/';
 const REEL_SIZES = { vertical:[720,1280], square:[1080,1080], wide:[1280,720] };
 const COLLAGE_SIZES = { portrait:[2160,2700], square:[2400,2400], story:[1620,2880], wide:[2880,1620] };
 const INK = '#17202C', FILM = '#F0A030';
+const MAX_PHOTO = 2560; // Bigger photos are scaled down on import to keep memory and recording smooth.
+const PREFS_KEY = 'spool.prefs';
 
 /* ============ Helpers ============ */
 const $ = (s, r=document) => r.querySelector(s);
@@ -358,7 +364,6 @@ const state = {
   running: null, tapTimes: [], actx: null, audioBuf: null,
   reelUrl: null, collageUrl: null
 };
-const motionCache = new Map();
 const clientId = () => (store.get('spool.clientId') || DEFAULT_CLIENT_ID).trim();
 const proxyUrl = () => (store.get('spool.proxy') || '').trim();
 
@@ -483,8 +488,56 @@ function makeThumb(el, w, h){
   return c.toDataURL('image/jpeg', .72);
 }
 
+async function shrink(img, w, h, type){
+  const s = MAX_PHOTO / Math.max(w, h);
+  const c = document.createElement('canvas'); c.width = Math.round(w*s); c.height = Math.round(h*s);
+  const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+  x.drawImage(img, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, type, 0.9));
+  const size = { w: c.width, h: c.height }; c.width = c.height = 0;
+  if (!blob) return null;
+  const src = URL.createObjectURL(blob), el = new Image(); el.src = src;
+  try { await el.decode(); } catch { URL.revokeObjectURL(src); return null; }
+  return { src, el, ...size };
+}
+
+/* Reads the date a JPEG was taken from its EXIF block, so date order and Story mode use real dates. */
+async function exifDate(file){
+  try {
+    const v = new DataView(await file.slice(0, 131072).arrayBuffer());
+    if (v.getUint16(0) !== 0xFFD8) return null;
+    let o = 2;
+    while (o + 10 < v.byteLength){
+      const marker = v.getUint16(o), len = v.getUint16(o + 2);
+      if (marker === 0xFFE1 && v.getUint32(o + 4) === 0x45786966) return tiffDate(v, o + 10);
+      if ((marker & 0xFF00) !== 0xFF00 || marker === 0xFFDA) break;
+      o += 2 + len;
+    }
+  } catch {}
+  return null;
+}
+function tiffDate(v, t){
+  const le = v.getUint16(t) === 0x4949;
+  const u16 = o => v.getUint16(t + o, le), u32 = o => v.getUint32(t + o, le);
+  const ifd = (off, want) => {
+    const out = {}, n = u16(off);
+    for (let i = 0; i < n; i++){ const e = off + 2 + i*12, tag = u16(e); if (want.includes(tag)) out[tag] = { count: u32(e + 4), val: u32(e + 8) }; }
+    return out;
+  };
+  const ifd0 = ifd(u32(4), [0x8769, 0x0132]);
+  let ent = null;
+  if (ifd0[0x8769]){ const ex = ifd(ifd0[0x8769].val, [0x9003, 0x9004]); ent = ex[0x9003] || ex[0x9004]; }
+  ent = ent || ifd0[0x0132];
+  if (!ent || ent.count < 19) return null;
+  let str = ''; for (let i = 0; i < 19; i++) str += String.fromCharCode(v.getUint8(t + ent.val + i));
+  const m = str.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+  if (!m || +m[1] < 1900) return null;
+  const d = new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  return isNaN(d) ? null : d;
+}
+
 async function addMedia({ blob, type, date, name }){
-  const src = URL.createObjectURL(blob);
+  let src = URL.createObjectURL(blob);
   let el, w, h, duration = 0;
   try {
     if (type === 'video'){
@@ -499,6 +552,10 @@ async function addMedia({ blob, type, date, name }){
     } else {
       el = new Image(); el.src = src; await el.decode();
       w = el.naturalWidth; h = el.naturalHeight;
+      if (Math.max(w, h) > MAX_PHOTO){
+        const small = await shrink(el, w, h, blob.type === 'image/png' ? 'image/png' : 'image/jpeg').catch(() => null);
+        if (small){ URL.revokeObjectURL(src); ({ src, el, w, h } = small); }
+      }
     }
     if (!w || !h) throw new Error('empty');
   } catch {
@@ -512,7 +569,6 @@ async function addMedia({ blob, type, date, name }){
 function disposeItem(it){
   URL.revokeObjectURL(it.src);
   if (it.type === 'video'){ it.el.pause(); it.el.remove(); }
-  motionCache.delete(it.id);
 }
 
 let sheetQueued = false;
@@ -573,18 +629,96 @@ $('#clear').addEventListener('click', () => {
   scheduleSheet(); say('Contact sheet cleared.');
 });
 
-$('#deviceInput').addEventListener('change', async e => {
-  const files = [...e.target.files]; e.target.value = '';
-  if (!files.length) return;
+async function addFiles(files){
+  files = files.filter(f => !f.type || /^(image|video)\//.test(f.type));
+  if (!files.length){ say("Those files aren't photos or videos.", 'error'); return; }
   let failed = 0, n = 0;
   for (const f of files){
     const type = (f.type || '').startsWith('video') ? 'video' : 'photo';
-    try { await addMedia({ blob: f, type, date: f.lastModified ? new Date(f.lastModified) : null, name: f.name }); }
+    try {
+      const date = (type === 'photo' && await exifDate(f)) || (f.lastModified ? new Date(f.lastModified) : null);
+      await addMedia({ blob: f, type, date, name: f.name });
+    }
     catch { failed++; }
     say(`Adding ${++n} of ${files.length}…`);
   }
   say(failed ? `Added ${files.length - failed} of ${files.length}. Some files couldn't be read. HEIC photos only open in Safari.` : `Added ${files.length} from this device.`, failed ? 'error' : 'info');
+}
+$('#deviceInput').addEventListener('change', e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (files.length) addFiles(files);
 });
+
+/* Drop files anywhere on the page */
+let dropDepth = 0;
+const hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+const endDropping = () => { dropDepth = 0; document.body.classList.remove('dropping'); };
+document.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); dropDepth++; document.body.classList.add('dropping'); });
+document.addEventListener('dragleave', e => { if (hasFiles(e) && --dropDepth <= 0) endDropping(); });
+document.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+document.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault(); endDropping();
+  if ($('#settings').open) return;
+  addFiles([...e.dataTransfer.files]);
+});
+
+/* Drag frames to reorder. Mouse drags straight away; touch needs a short press so swipes still scroll. */
+const grid = $('#frames');
+let drag = null;
+grid.addEventListener('pointerdown', e => {
+  if (drag || (e.pointerType === 'mouse' && e.button !== 0) || e.target.closest('button')) return;
+  const f = e.target.closest('.frame'); if (!f) return;
+  drag = { f, pid: e.pointerId, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, on: false, touch: e.pointerType !== 'mouse' };
+  if (drag.touch) drag.timer = setTimeout(liftFrame, 300);
+});
+window.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.pid) return;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (!drag.on){
+    if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 8) return;
+    if (drag.touch){ endDrag(); return; }
+    liftFrame();
+  }
+  moveGhost();
+});
+window.addEventListener('pointerup', e => { if (drag && e.pointerId === drag.pid) endDrag(); });
+window.addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.pid) endDrag(); });
+grid.addEventListener('touchmove', e => { if (drag?.on) e.preventDefault(); }, { passive: false });
+grid.addEventListener('contextmenu', e => { if (drag) e.preventDefault(); });
+
+function liftFrame(){
+  if (!drag || drag.on || !drag.f.isConnected) return;
+  drag.on = true;
+  const r = drag.f.querySelector('img').getBoundingClientRect();
+  const g = drag.f.querySelector('img').cloneNode();
+  g.className = 'drag-ghost'; g.style.width = r.width + 'px';
+  drag.dx = drag.x0 - r.left; drag.dy = drag.y0 - r.top;
+  drag.ghost = g; document.body.appendChild(g);
+  drag.f.classList.add('lifting');
+  navigator.vibrate?.(10);
+  moveGhost();
+}
+function moveGhost(){
+  const { f, ghost, x, y } = drag;
+  ghost.style.left = (x - drag.dx) + 'px'; ghost.style.top = (y - drag.dy) + 'px';
+  const over = document.elementFromPoint(x, y)?.closest('.frame');
+  if (over && over !== f && over.parentNode === grid && f.parentNode === grid){
+    const kids = [...grid.children];
+    grid.insertBefore(f, kids.indexOf(over) > kids.indexOf(f) ? over.nextSibling : over);
+  }
+  if (y < 70) scrollBy(0, -14); else if (y > innerHeight - 70) scrollBy(0, 14);
+}
+function endDrag(){
+  const d = drag; drag = null;
+  clearTimeout(d.timer);
+  if (!d.on) return;
+  d.ghost.remove(); d.f.classList.remove('lifting');
+  const byId = new Map(state.items.map(it => [it.id, it]));
+  const next = [...grid.children].map(el => byId.get(+el.dataset.id)).filter(Boolean);
+  if (next.length === state.items.length) state.items = next;
+  scheduleSheet();
+}
 
 /* ============ Drawing primitives ============ */
 function coverDraw(ctx, el, iw, ih, x, y, w, h, zoom=1, px=0, py=0){
@@ -659,13 +793,13 @@ function buildTimeline(o){
 }
 
 function getMotion(it, style){
-  const key = it.id + style;
-  if (motionCache.has(key)) return motionCache.get(key);
+  it.motion ??= {};
+  if (it.motion[style]) return it.motion[style];
   const r = rng(it.id * 9973 + style.length);
   const z0 = style === 'story' ? 1.03 : 1.06, z1 = style === 'story' ? 1.12 : 1.22;
   const zoomIn = r() > 0.4;
   const m = { za: zoomIn ? z0 : z1, zb: zoomIn ? z1 : z0, ax:(r()*2-1)*.8, ay:(r()*2-1)*.8, bx:(r()*2-1)*.8, by:(r()*2-1)*.8 };
-  motionCache.set(key, m); return m;
+  it.motion[style] = m; return m;
 }
 
 function cardText(ctx, W, H, big, small, isYear){
@@ -821,7 +955,9 @@ async function runReel(record){
     $('#reelOut').hidden = true;
   }
 
-  let stopped = false;
+  let stopped = false, wentHidden = false;
+  const onVis = () => { if (document.hidden) wentHidden = true; };
+  if (record) document.addEventListener('visibilitychange', onVis);
   state.running = { stop(){ stopped = true; } };
   setRunningUI(record);
   say(record ? 'Recording. Keep this tab on screen…' : 'Previewing…');
@@ -844,6 +980,7 @@ async function runReel(record){
   if (!stopped){ drawFrame(ctx, W, H, tl, tl.total - 0.001, o); await sleep(120); }
   state.items.forEach(it => { if (it.type === 'video') it.el.pause(); });
   audio?.stop();
+  document.removeEventListener('visibilitychange', onVis);
   state.running = null; setIdleUI();
 
   if (rec){
@@ -851,6 +988,7 @@ async function runReel(record){
     if (stopped){ say('Recording stopped. Nothing was saved.'); drawPoster(); return; }
     const type = (mime || rec.mimeType || 'video/webm').split(';')[0];
     showReel(new Blob(chunks, { type }), type);
+    if (wentHidden) say('The tab was hidden for part of the recording, so some of the video may be frozen. Record again with this tab on screen.', 'error');
   } else {
     say(stopped ? 'Preview stopped.' : 'Preview finished.');
     drawPoster();
@@ -968,7 +1106,7 @@ $('#musicClear').addEventListener('click', () => {
 $('#preview').addEventListener('click', () => { ensureActx(); runReel(false); });
 $('#record').addEventListener('click', () => { ensureActx(); runReel(true); });
 $('#reelOpts').addEventListener('input', () => { syncReelControls(); refreshOutputs(); });
-$('#reelOpts').addEventListener('change', () => { syncReelControls(); refreshOutputs(); });
+$('#reelOpts').addEventListener('change', () => { syncReelControls(); refreshOutputs(); savePrefs(); });
 
 /* ============ Collage ============ */
 const layoutHints = {
@@ -1131,7 +1269,32 @@ function syncCollageControls(){
   $('#layoutHint').textContent = layoutHints[$('input[name=clayout]:checked').value];
 }
 $('#collageOpts').addEventListener('input', () => { syncCollageControls(); scheduleCollage(); });
-$('#collageOpts').addEventListener('change', () => { syncCollageControls(); scheduleCollage(); });
+$('#collageOpts').addEventListener('change', () => { syncCollageControls(); scheduleCollage(); savePrefs(); });
+
+/* ============ Remembered choices ============ */
+const PREF_IDS = ['secs', 'beats', 'cbgPreset', 'cbg', 'cgap'], PREF_CHECKS = ['cround', 'cdates'];
+function savePrefs(){
+  const p = {};
+  $$('#reelOpts input[type=radio]:checked, #collageOpts input[type=radio]:checked').forEach(r => p[r.name] = r.value);
+  PREF_IDS.forEach(id => p[id] = $('#' + id).value);
+  PREF_CHECKS.forEach(id => p[id] = $('#' + id).checked);
+  store.set(PREFS_KEY, JSON.stringify(p));
+}
+function loadPrefs(){
+  let p; try { p = JSON.parse(store.get(PREFS_KEY) || '{}'); } catch { return; }
+  if (!p || typeof p !== 'object') return;
+  ['rstyle', 'rshape', 'clayout', 'cshape'].forEach(n => {
+    const r = p[n] && $$(`input[name=${n}]`).find(x => x.value === p[n]);
+    if (r) r.checked = true;
+  });
+  PREF_IDS.forEach(id => {
+    const el = $('#' + id);
+    if (typeof p[id] !== 'string') return;
+    if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === p[id])) return;
+    el.value = p[id];
+  });
+  PREF_CHECKS.forEach(id => { if (typeof p[id] === 'boolean') $('#' + id).checked = p[id]; });
+}
 
 /* ============ Tabs and refresh ============ */
 function selectTab(which){
@@ -1186,6 +1349,7 @@ $('#pickLink').addEventListener('click', () => { setTimeout(startPolling, 300); 
 $('#setupHint').hidden = !!clientId();
 if (clientId()) loadGIS().catch(() => {});
 if (location.protocol === 'file:') say('Opened as a local file. Google sign-in needs this page served from a web address, such as GitHub Pages.', 'error');
+loadPrefs();
 syncReelControls(); syncCollageControls();
 renderSheet(); refreshOutputs();
 document.fonts.ready.then(refreshOutputs);
