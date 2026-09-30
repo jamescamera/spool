@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spool</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎞️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Caveat:wght@500..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEF1F4; --ink:#17202C; --film:#F0A030; --mute:#5E6A7A; --line:#C9D0D8; --white:#FFFFFF; --frame:#26303D;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Archivo',system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.5}
+main{max-width:1000px;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 16px calc(80px + env(safe-area-inset-bottom))}
+h1,h2{margin:0}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:28px}
+.word{font-weight:850;font-stretch:125%;font-size:clamp(60px,15vw,128px);line-height:.86;letter-spacing:-.025em;margin:6px 0 14px}
+.lede{max-width:52ch;margin:0;color:var(--mute);font-size:17px}
+h2{font-weight:750;font-stretch:112%;font-size:22px;line-height:1.2;margin-bottom:12px}
+section{margin-top:36px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.mute{color:var(--mute)}
+.hint{color:var(--mute);font-size:14px;margin:8px 0 0;max-width:60ch}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;padding:0;margin:-1px}
+
+.btn{font:inherit;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:46px;padding:10px 18px;border:2px solid var(--ink);background:var(--ink);color:var(--white);border-radius:8px;cursor:pointer;text-decoration:none;line-height:1.2}
+.btn.ghost{background:transparent;color:var(--ink)}
+.btn.small{min-height:38px;padding:6px 12px;font-size:15px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn:focus-visible,.linkish:focus-visible,select:focus-visible,input:focus-visible,[role=tab]:focus-visible,.fbtns button:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.sheet .fbtns button:focus-visible{outline-color:var(--film)}
+input.vh:focus-visible + label{outline:3px solid var(--ink);outline-offset:3px}
+.linkish{font:inherit;background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+
+/* Contact sheet */
+.sheet-head{display:flex;align-items:baseline;gap:12px}
+.sheet-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 12px}
+.sheet-tools label{display:flex;gap:8px;align-items:center;font-weight:600}
+select,input[type=number],input[type=text],input:not([type]){font:inherit;color:var(--ink);background:var(--white);border:2px solid var(--line);border-radius:8px;min-height:42px;padding:6px 10px}
+input[type=number]{width:5.5em}
+.sheet{position:relative;background:var(--ink);color:var(--white);border-radius:4px;padding:32px 14px}
+.sheet::before,.sheet::after{content:"";position:absolute;left:12px;right:12px;height:9px;background:repeating-linear-gradient(90deg,#D6DDE4 0 13px,transparent 13px 27px);border-radius:2px}
+.sheet::before{top:11px}.sheet::after{bottom:11px}
+.frames{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:14px 10px}
+.frame{margin:0;position:relative}
+.frame img{display:block;width:100%;aspect-ratio:1;object-fit:cover;background:var(--frame);border-radius:2px}
+.clip{position:absolute;top:6px;right:6px;background:rgba(10,14,20,.72);color:var(--white);font-size:12px;font-weight:650;padding:2px 6px;border-radius:4px}
+.fcap{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+.fnum{color:var(--film);font-weight:750;font-stretch:70%;font-size:15px;letter-spacing:.02em}
+.fbtns{display:flex}
+.fbtns button{font:inherit;background:none;border:0;color:#DCE2E8;width:30px;height:30px;font-size:19px;line-height:1;border-radius:4px;cursor:pointer}
+.fbtns button:hover{background:#2C3848;color:var(--white)}
+.empty{margin:18px 4px;color:#AEB8C3;max-width:46ch}
+
+/* Tabs and panels */
+.tabs{display:flex;gap:26px;border-bottom:2px solid var(--line);margin-bottom:18px}
+[role=tab]{font:inherit;font-size:18px;font-weight:600;font-stretch:108%;color:var(--mute);background:none;border:0;border-bottom:4px solid transparent;margin-bottom:-2px;padding:8px 0 10px;cursor:pointer}
+[role=tab][aria-selected=true]{color:var(--ink);font-weight:800;border-bottom-color:var(--ink)}
+.make{display:grid;gap:18px}
+@media (min-width:860px){.make{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}.stage{position:sticky;top:16px}}
+.panel{background:var(--white);border:1px solid var(--line);border-radius:10px;padding:18px}
+fieldset{border:0;padding:0;margin:0 0 22px;min-width:0}
+legend{font-weight:750;padding:0;margin-bottom:8px}
+.field{display:grid;gap:4px;font-weight:600;margin-bottom:12px}
+.field input{width:100%;font-weight:400}
+.seg{display:inline-flex;flex-wrap:wrap;border:2px solid var(--ink);border-radius:8px;overflow:hidden}
+.seg label{position:relative;cursor:pointer}
+.seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.seg span{display:block;padding:9px 14px;font-weight:600;border-right:2px solid var(--ink);min-height:42px}
+.seg label:last-child span{border-right:0}
+.seg input:checked + span{background:var(--ink);color:var(--white);font-weight:800}
+.seg input:focus-visible + span{outline:3px solid var(--film);outline-offset:-5px}
+.inline{display:flex;gap:8px;align-items:center;font-weight:600}
+input[type=range]{accent-color:var(--ink);width:160px}
+input[type=color]{width:46px;height:42px;padding:2px;border:2px solid var(--line);border-radius:8px;background:var(--white)}
+input[type=checkbox]{width:20px;height:20px;accent-color:var(--ink)}
+progress{width:100%;height:8px;margin-top:14px;appearance:none;-webkit-appearance:none;border:0;border-radius:4px;background:var(--line);overflow:hidden}
+progress::-webkit-progress-bar{background:var(--line)}
+progress::-webkit-progress-value{background:var(--ink)}
+progress::-moz-progress-bar{background:var(--ink)}
+.stage{background:var(--ink);border-radius:10px;padding:14px;display:grid;gap:14px;justify-items:center}
+.stage canvas,.stage video{display:block;max-width:100%;max-height:68vh;width:auto;height:auto;border-radius:3px;background:#0E141C}
+.stage .row{justify-content:center}
+.stage .btn{border-color:var(--white);background:var(--white);color:var(--ink)}
+.stage .btn.ghost{background:transparent;color:var(--white)}
+.out{display:grid;gap:12px;justify-items:center;width:100%}
+
+.status{position:sticky;bottom:max(12px,env(safe-area-inset-bottom));margin:28px 0 0;background:var(--ink);color:var(--white);padding:12px 16px;border-radius:8px;font-weight:550;min-height:0}
+.status:empty{display:none}
+.status[data-kind=error]{box-shadow:inset 6px 0 0 var(--film)}
+.status[data-kind=error]::before{content:"Heads up: ";font-weight:800;color:var(--film)}
+
+dialog{border:0;border-radius:12px;padding:22px;max-width:560px;width:calc(100% - 28px);color:var(--ink);background:var(--white)}
+dialog::backdrop{background:rgba(23,32,44,.55)}
+dialog ol{padding-left:22px;margin:12px 0 18px}
+dialog li{margin-bottom:6px}
+dialog a{color:var(--ink)}
+code{font-size:.92em;background:var(--paper);padding:1px 5px;border-radius:4px;word-break:break-all}
+#vidbin{position:fixed;left:0;bottom:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
+#vidbin video{width:2px;height:2px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div>
+      <h1 class="word">Spool</h1>
+      <p class="lede">Pick photos and clips from Google Photos or this device, put them in order, then turn them into a reel or a collage.</p>
+    </div>
+    <button class="btn ghost small" id="openSettings" type="button">Google setup</button>
+  </header>
+
+  <section aria-labelledby="h-source">
+    <h2 id="h-source">Bring in photos</h2>
+    <div class="row">
+      <button class="btn" id="connect" type="button">Connect Google Photos</button>
+      <a class="btn" id="pickLink" href="#" target="_blank" rel="noopener" hidden>Choose in Google Photos</a>
+      <input id="deviceInput" type="file" accept="image/*,video/*" multiple class="vh">
+      <label class="btn ghost" for="deviceInput">Add from this device</label>
+    </div>
+    <p class="hint" id="setupHint" hidden>Google Photos needs a one-time setup first. <button class="linkish" type="button" data-open-settings>Set it up</button></p>
+  </section>
+
+  <section aria-labelledby="h-sheet">
+    <div class="sheet-head"><h2 id="h-sheet">Contact sheet</h2><span id="count" class="mute"></span></div>
+    <div class="sheet-tools" id="sheetTools" hidden>
+      <label for="sort">Order
+        <select id="sort">
+          <option value="picked">As picked</option>
+          <option value="oldest">Oldest first</option>
+          <option value="newest">Newest first</option>
+        </select>
+      </label>
+      <button class="btn ghost small" id="shuffle" type="button">Shuffle</button>
+      <button class="btn ghost small" id="clear" type="button">Clear all</button>
+    </div>
+    <div class="sheet">
+      <p id="emptySheet" class="empty">Your picks land here, in the order they'll play. Use ‹ and › under a frame to move it.</p>
+      <div id="frames" class="frames"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-make">
+    <h2 id="h-make">Make something</h2>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-reel" aria-selected="true" aria-controls="panel-reel" type="button">Reel</button>
+      <button role="tab" id="tab-collage" aria-selected="false" aria-controls="panel-collage" type="button">Collage</button>
+    </div>
+
+    <div id="panel-reel" role="tabpanel" aria-labelledby="tab-reel" class="make">
+      <div class="panel" id="reelOpts">
+        <fieldset>
+          <legend>Style</legend>
+          <div class="seg">
+            <label><input type="radio" name="rstyle" value="montage" checked><span>Montage</span></label>
+            <label><input type="radio" name="rstyle" value="kenburns"><span>Slow drift</span></label>
+            <label><input type="radio" name="rstyle" value="story"><span>Story</span></label>
+          </div>
+          <p class="hint" id="styleHint"></p>
+        </fieldset>
+        <fieldset>
+          <legend>Shape</legend>
+          <div class="seg">
+            <label><input type="radio" name="rshape" value="vertical" checked><span>Vertical 9:16</span></label>
+            <label><input type="radio" name="rshape" value="square"><span>Square</span></label>
+            <label><input type="radio" name="rshape" value="wide"><span>Wide 16:9</span></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Music and timing</legend>
+          <div class="row">
+            <input type="file" id="music" accept="audio/*" class="vh">
+            <label for="music" class="btn ghost small">Choose a track</label>
+            <span id="musicName" class="mute">No track yet, so the reel will be silent</span>
+            <button id="musicClear" class="linkish" type="button" hidden>Remove</button>
+          </div>
+          <div class="row" id="bpmRow" style="margin-top:12px">
+            <label class="inline" for="bpm">Tempo <input type="number" id="bpm" min="40" max="220" value="100" inputmode="numeric"> BPM</label>
+            <button class="btn ghost small" id="tap" type="button">Tap tempo</button>
+            <label class="inline" for="beats">Cut every
+              <select id="beats">
+                <option value="1">beat</option>
+                <option value="2" selected>2 beats</option>
+                <option value="4">4 beats</option>
+                <option value="8">8 beats</option>
+              </select>
+            </label>
+          </div>
+          <div class="row" id="secsRow" style="margin-top:12px" hidden>
+            <label class="inline" for="secs">Each photo stays <input type="range" id="secs" min="1.5" max="6" step="0.5" value="3"> <output id="secsOut" for="secs">3 s</output></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Words</legend>
+          <label class="field">Opening title <input id="rtitle" type="text" placeholder="A year of Yoshi"></label>
+          <label class="field">Under the title <input id="rsub" type="text" placeholder="2024 to 2026"></label>
+          <label class="field">Closing line <input id="rend" type="text" placeholder="More soon"></label>
+        </fieldset>
+        <p id="reelLen" class="mute" style="margin:0 0 12px"></p>
+        <div class="row">
+          <button class="btn ghost" id="preview" type="button">Preview</button>
+          <button class="btn" id="record" type="button">Record video</button>
+        </div>
+        <progress id="progress" value="0" max="1" aria-label="Reel progress"></progress>
+        <p class="hint">Recording plays the reel through once in real time, so keep this tab open and on screen until it finishes.</p>
+      </div>
+      <div class="stage">
+        <canvas id="reelCanvas" width="720" height="1280" aria-label="Reel preview"></canvas>
+        <div id="reelOut" class="out" hidden>
+          <video id="reelVideo" controls playsinline></video>
+          <div class="row">
+            <a id="reelDownload" class="btn" download>Download video</a>
+            <button id="reelShare" class="btn ghost" type="button" hidden>Share</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-collage" role="tabpanel" aria-labelledby="tab-collage" class="make" hidden>
+      <div class="panel" id="collageOpts">
+        <fieldset>
+          <legend>Layout</legend>
+          <div class="seg">
+            <label><input type="radio" name="clayout" value="grid" checked><span>Grid</span></label>
+            <label><input type="radio" name="clayout" value="hero"><span>One big</span></label>
+            <label><input type="radio" name="clayout" value="polaroid"><span>Polaroids</span></label>
+          </div>
+          <p class="hint" id="layoutHint"></p>
+        </fieldset>
+        <fieldset>
+          <legend>Shape</legend>
+          <div class="seg">
+            <label><input type="radio" name="cshape" value="portrait" checked><span>Portrait 4:5</span></label>
+            <label><input type="radio" name="cshape" value="square"><span>Square</span></label>
+            <label><input type="radio" name="cshape" value="story"><span>Story 9:16</span></label>
+            <label><input type="radio" name="cshape" value="wide"><span>Wide 16:9</span></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Look</legend>
+          <label class="field">Title <input id="ctitle" type="text" placeholder="Happy birthday!"></label>
+          <div class="row" style="margin-bottom:12px">
+            <label class="inline" for="cbgPreset">Background
+              <select id="cbgPreset">
+                <option value="#FFFFFF">White</option>
+                <option value="#000000">Black</option>
+                <option value="#C8A97E">Kraft paper</option>
+                <option value="#BFD7EA">Sky</option>
+                <option value="custom">Custom colour</option>
+              </select>
+            </label>
+            <input type="color" id="cbg" value="#FFFFFF" aria-label="Custom background colour" hidden>
+          </div>
+          <div class="row" style="margin-bottom:12px">
+            <label class="inline" for="cgap">Space between <input type="range" id="cgap" min="0" max="4" step="0.5" value="1.5"></label>
+          </div>
+          <div class="row">
+            <label class="inline"><input type="checkbox" id="cround"> Rounded corners</label>
+            <label class="inline"><input type="checkbox" id="cdates"> Write dates on photos</label>
+          </div>
+        </fieldset>
+      </div>
+      <div class="stage">
+        <canvas id="collageCanvas" width="2160" height="2700" aria-label="Collage preview"></canvas>
+        <div class="row" id="collageOut" hidden>
+          <a id="collageDownload" class="btn" download>Download image</a>
+          <button id="collageShare" class="btn ghost" type="button" hidden>Share</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+</main>
+
+<div id="vidbin" aria-hidden="true"></div>
+
+<dialog id="settings" aria-labelledby="h-settings">
+  <form method="dialog">
+    <h2 id="h-settings">Connect Google Photos</h2>
+    <p style="margin:0">Google only shares your picks with a page you've registered. It's a one-time job, about ten minutes.</p>
+    <ol>
+      <li>Open <a href="https://console.cloud.google.com/projectcreate" target="_blank" rel="noopener">Google Cloud Console</a> and create a project.</li>
+      <li>Go to APIs &amp; Services, then Library, and enable the <b>Photos Picker API</b>.</li>
+      <li>Set up the OAuth consent screen as External and add your own Google account as a test user.</li>
+      <li>Under Credentials, create an OAuth client ID of type Web application. Add <code id="originCode"></code> as an authorised JavaScript origin.</li>
+      <li>Copy the client ID and paste it below.</li>
+    </ol>
+    <label class="field">Client ID <input id="cidInput" type="text" autocomplete="off" spellcheck="false" placeholder="1234-abc.apps.googleusercontent.com"></label>
+    <label class="field">Download proxy (optional) <input id="proxyInput" type="text" autocomplete="off" spellcheck="false" placeholder="https://spool-proxy.yourname.workers.dev"></label>
+    <p class="hint" style="margin-top:-4px">Only needed if picks fail with a “browser blocked the download” message. Deploy spool-proxy-worker.js to Cloudflare Workers and paste its address here.</p>
+    <div class="row" style="margin-top:18px">
+      <button value="save" class="btn">Save</button>
+      <button value="cancel" class="btn ghost">Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* ============ Config ============ */
+const DEFAULT_CLIENT_ID = ''; // Optional: paste your OAuth client ID here instead of using the setup dialog.
+const SCOPE = 'https://www.googleapis.com/auth/photospicker.mediaitems.readonly';
+const PICKER_API = 'https://photospicker.googleapis.com/v1/';
+const REEL_SIZES = { vertical:[720,1280], square:[1080,1080], wide:[1280,720] };
+const COLLAGE_SIZES = { portrait:[2160,2700], square:[2400,2400], story:[1620,2880], wide:[2880,1620] };
+const INK = '#17202C', FILM = '#F0A030';
+
+/* ============ Helpers ============ */
+const $ = (s, r=document) => r.querySelector(s);
+const $$ = (s, r=document) => [...r.querySelectorAll(s)];
+const store = {
+  get(k){ try{ return localStorage.getItem(k); }catch{ return null; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch{} }
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp = (v,a,b) => Math.min(b, Math.max(a, v));
+const lerp = (a,b,t) => a + (b-a)*t;
+const ease = p => 0.5 - 0.5*Math.cos(Math.PI*p);
+const stamp = () => new Date().toISOString().slice(0,10);
+const fmtDate = d => d.toLocaleDateString('en-GB', {day:'numeric', month:'short', year:'numeric'});
+function fmtDur(s){ s = Math.max(0, Math.round(s||0)); return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`; }
+function durMs(str, fallback){ const n = parseFloat(str); return isFinite(n) && n > 0 ? n*1000 : fallback; }
+function rng(seed){ let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function once(el, ok, bad, timeout){
+  return new Promise((res, rej) => {
+    let timer;
+    const a = () => done(res), b = () => done(rej, new Error(bad));
+    function done(fn, v){ clearTimeout(timer); el.removeEventListener(ok, a); el.removeEventListener(bad, b); fn(v); }
+    el.addEventListener(ok, a); el.addEventListener(bad, b);
+    if (timeout) timer = setTimeout(() => done(rej, new Error('timeout')), timeout);
+  });
+}
+async function pool(arr, n, fn){
+  let i = 0;
+  await Promise.all(Array.from({length: Math.min(n, arr.length)}, async () => { while (i < arr.length){ const x = arr[i++]; await fn(x); } }));
+}
+function luminance(hex){
+  const m = hex.replace('#','').match(/.{2}/g); if (!m) return 1;
+  const [r,g,b] = m.map(x => { const c = parseInt(x,16)/255; return c <= .03928 ? c/12.92 : Math.pow((c+.055)/1.055, 2.4); });
+  return .2126*r + .7152*g + .0722*b;
+}
+function say(msg, kind='info'){ const el = $('#status'); el.textContent = msg; el.dataset.kind = kind; }
+function fontsReady(){
+  return Promise.all([
+    document.fonts.load('800 60px Archivo'), document.fonts.load('600 60px Archivo'), document.fonts.load('600 60px Caveat'), document.fonts.load('700 60px Caveat')
+  ]).catch(() => {});
+}
+
+/* ============ State ============ */
+const state = {
+  items: [], seq: 0, tab: 'reel',
+  token: null, tokenExpiry: 0, session: null, polling: false,
+  running: null, tapTimes: [], actx: null, audioBuf: null,
+  reelUrl: null, collageUrl: null
+};
+const motionCache = new Map();
+const clientId = () => (store.get('spool.clientId') || DEFAULT_CLIENT_ID).trim();
+const proxyUrl = () => (store.get('spool.proxy') || '').trim();
+
+/* ============ Google sign-in and Picker ============ */
+let gisPromise = null;
+function loadGIS(){
+  if (gisPromise) return gisPromise;
+  gisPromise = new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://accounts.google.com/gsi/client'; s.async = true;
+    s.onload = () => res();
+    s.onerror = () => { gisPromise = null; rej(new Error('Google sign-in could not load. Check your connection.')); };
+    document.head.appendChild(s);
+  });
+  return gisPromise;
+}
+const tokenValid = () => state.token && Date.now() < state.tokenExpiry - 60000;
+
+function requestToken(){
+  return new Promise((res, rej) => {
+    if (!window.google?.accounts?.oauth2){ loadGIS().catch(()=>{}); rej(new Error('Google sign-in is still loading. Tap Connect again in a moment.')); return; }
+    const tc = google.accounts.oauth2.initTokenClient({
+      client_id: clientId(), scope: SCOPE,
+      callback: r => {
+        if (r.error){ rej(new Error(r.error_description || r.error)); return; }
+        state.token = r.access_token;
+        state.tokenExpiry = Date.now() + (Number(r.expires_in) || 3600) * 1000;
+        res();
+      },
+      error_callback: e => rej(new Error(e && e.type === 'popup_closed' ? 'The sign-in window closed before finishing.' : (e && e.message) || 'Sign-in failed.'))
+    });
+    tc.requestAccessToken();
+  });
+}
+
+async function api(path, opts={}){
+  if (!tokenValid()) throw new Error('Your Google sign-in has expired. Tap Connect Google Photos again.');
+  const r = await fetch(PICKER_API + path, {
+    ...opts,
+    headers: { Authorization: 'Bearer ' + state.token, 'Content-Type': 'application/json', ...(opts.headers||{}) }
+  });
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`Google Photos returned ${r.status}. ${txt.slice(0,160)}`);
+  return txt ? JSON.parse(txt) : null;
+}
+
+async function prepareSession(){
+  say('Opening a picking session…');
+  const s = await api('sessions', { method:'POST', body:'{}' });
+  state.session = s;
+  const a = $('#pickLink');
+  a.href = s.pickerUri.replace(/\/$/, '') + '/autoclose';
+  a.hidden = false; $('#connect').hidden = true;
+  say('Connected. Tap “Choose in Google Photos”, pick what you want, tap Done, then come back here.');
+}
+
+async function startPolling(){
+  if (state.polling || !state.session) return;
+  state.polling = true;
+  const s = state.session;
+  const interval = durMs(s.pollingConfig?.pollInterval, 3000);
+  const deadline = Date.now() + durMs(s.pollingConfig?.timeoutIn, 30*60000);
+  say('Waiting for your picks in Google Photos…');
+  let finished = false;
+  try {
+    while (Date.now() < deadline){
+      await sleep(interval);
+      const cur = await api('sessions/' + encodeURIComponent(s.id));
+      if (cur.mediaItemsSet){ await importSession(s.id); finished = true; break; }
+    }
+    if (!finished) say('The picking session timed out. Tap Pick more to start a new one.', 'error');
+  } catch(e){ say(e.message, 'error'); }
+  finally {
+    state.polling = false;
+    api('sessions/' + encodeURIComponent(s.id), { method:'DELETE' }).catch(()=>{});
+    state.session = null;
+    $('#pickLink').hidden = true;
+    const c = $('#connect'); c.hidden = false; c.textContent = 'Pick more from Google Photos';
+  }
+}
+
+async function fetchGoogleMedia(url){
+  const headers = { Authorization: 'Bearer ' + state.token };
+  try {
+    const r = await fetch(url, { headers });
+    if (!r.ok) throw new Error(`A download failed (${r.status}).`);
+    return await r.blob();
+  } catch(e){
+    const px = proxyUrl();
+    if (!px) throw new Error(e instanceof TypeError ? 'Your browser blocked the download. Add a proxy address in Google setup.' : e.message);
+    const r = await fetch(px + (px.includes('?') ? '&' : '?') + 'url=' + encodeURIComponent(url), { headers });
+    if (!r.ok) throw new Error(`The proxy download failed (${r.status}).`);
+    return await r.blob();
+  }
+}
+
+async function importSession(id){
+  const list = []; let pt = '';
+  do {
+    const r = await api(`mediaItems?sessionId=${encodeURIComponent(id)}&pageSize=100${pt ? '&pageToken=' + encodeURIComponent(pt) : ''}`);
+    list.push(...(r?.mediaItems || []));
+    pt = r?.nextPageToken || '';
+  } while (pt);
+  if (!list.length){ say('Nothing was picked.'); return; }
+  let done = 0, failed = 0, lastErr = '';
+  await pool(list, 4, async m => {
+    try {
+      const isVid = m.type === 'VIDEO';
+      const blob = await fetchGoogleMedia(m.mediaFile.baseUrl + (isVid ? '=dv' : '=w2560-h2560'));
+      await addMedia({ blob, type: isVid ? 'video' : 'photo', date: m.createTime ? new Date(m.createTime) : null, name: m.mediaFile.filename || 'Google Photos item' });
+    } catch(e){ failed++; lastErr = e.message; }
+    done++; say(`Bringing in ${done} of ${list.length}…`);
+  });
+  say(failed ? `Added ${list.length - failed} of ${list.length}. ${lastErr}` : `Added ${list.length} from Google Photos.`, failed ? 'error' : 'info');
+}
+
+/* ============ Library ============ */
+function makeThumb(el, w, h){
+  const c = document.createElement('canvas'); c.width = c.height = 240;
+  const x = c.getContext('2d'); x.fillStyle = '#26303D'; x.fillRect(0,0,240,240);
+  try { coverDraw(x, el, w, h, 0, 0, 240, 240, 1, 0, 0); } catch {}
+  return c.toDataURL('image/jpeg', .72);
+}
+
+async function addMedia({ blob, type, date, name }){
+  const src = URL.createObjectURL(blob);
+  let el, w, h, duration = 0;
+  try {
+    if (type === 'video'){
+      el = document.createElement('video');
+      el.muted = true; el.playsInline = true; el.setAttribute('playsinline',''); el.preload = 'auto'; el.src = src;
+      $('#vidbin').appendChild(el);
+      await once(el, 'loadeddata', 'error', 20000);
+      duration = isFinite(el.duration) ? el.duration : 0;
+      el.currentTime = Math.min(0.5, duration/2 || 0);
+      await once(el, 'seeked', 'error', 4000).catch(()=>{});
+      w = el.videoWidth; h = el.videoHeight;
+    } else {
+      el = new Image(); el.src = src; await el.decode();
+      w = el.naturalWidth; h = el.naturalHeight;
+    }
+    if (!w || !h) throw new Error('empty');
+  } catch {
+    URL.revokeObjectURL(src); if (el && type === 'video') el.remove();
+    throw new Error(`Couldn't read ${name}.`);
+  }
+  state.items.push({ id: ++state.seq, order: state.seq, type, src, el, w, h, duration, date, name, thumb: makeThumb(el, w, h) });
+  scheduleSheet();
+}
+
+function disposeItem(it){
+  URL.revokeObjectURL(it.src);
+  if (it.type === 'video'){ it.el.pause(); it.el.remove(); }
+  motionCache.delete(it.id);
+}
+
+let sheetQueued = false;
+function scheduleSheet(){
+  if (sheetQueued) return; sheetQueued = true;
+  requestAnimationFrame(() => { sheetQueued = false; renderSheet(); refreshOutputs(); });
+}
+
+function renderSheet(){
+  const grid = $('#frames'); grid.innerHTML = '';
+  const n = state.items.length;
+  $('#count').textContent = n ? `${n} ${n === 1 ? 'frame' : 'frames'}` : '';
+  $('#emptySheet').hidden = !!n; $('#sheetTools').hidden = !n;
+  state.items.forEach((it, i) => {
+    const num = i + 1;
+    const f = document.createElement('figure');
+    f.className = 'frame'; f.dataset.id = it.id;
+    f.innerHTML = `<img alt="" src="${it.thumb}">` +
+      (it.type === 'video' ? `<span class="clip">Clip ${fmtDur(it.duration)}</span>` : '') +
+      `<div class="fcap"><span class="fnum">${String(num).padStart(2,'0')}</span><div class="fbtns">` +
+      `<button type="button" data-act="left" aria-label="Move frame ${num} earlier">‹</button>` +
+      `<button type="button" data-act="right" aria-label="Move frame ${num} later">›</button>` +
+      `<button type="button" data-act="remove" aria-label="Remove frame ${num}">×</button></div></div>`;
+    grid.appendChild(f);
+  });
+}
+
+$('#frames').addEventListener('click', e => {
+  const b = e.target.closest('button[data-act]'); if (!b) return;
+  const id = +b.closest('.frame').dataset.id;
+  const i = state.items.findIndex(x => x.id === id); if (i < 0) return;
+  const act = b.dataset.act;
+  if (act === 'remove'){ const [it] = state.items.splice(i, 1); disposeItem(it); }
+  else {
+    const j = act === 'left' ? i - 1 : i + 1;
+    if (j < 0 || j >= state.items.length) return;
+    [state.items[i], state.items[j]] = [state.items[j], state.items[i]];
+  }
+  scheduleSheet();
+  requestAnimationFrame(() => { $(`.frame[data-id="${id}"] button[data-act="${act}"]`)?.focus(); });
+});
+
+$('#sort').addEventListener('change', () => {
+  const v = $('#sort').value;
+  if (v === 'picked') state.items.sort((a,b) => a.order - b.order);
+  else if (v === 'oldest') state.items.sort((a,b) => (a.date ? +a.date : Infinity) - (b.date ? +b.date : Infinity));
+  else state.items.sort((a,b) => (b.date ? +b.date : -Infinity) - (a.date ? +a.date : -Infinity));
+  scheduleSheet();
+});
+$('#shuffle').addEventListener('click', () => {
+  const a = state.items;
+  for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [a[i], a[j]] = [a[j], a[i]]; }
+  scheduleSheet();
+});
+$('#clear').addEventListener('click', () => {
+  if (!state.items.length || !confirm('Remove every frame from the contact sheet?')) return;
+  state.items.forEach(disposeItem); state.items = [];
+  scheduleSheet(); say('Contact sheet cleared.');
+});
+
+$('#deviceInput').addEventListener('change', async e => {
+  const files = [...e.target.files]; e.target.value = '';
+  if (!files.length) return;
+  let failed = 0, n = 0;
+  for (const f of files){
+    const type = (f.type || '').startsWith('video') ? 'video' : 'photo';
+    try { await addMedia({ blob: f, type, date: f.lastModified ? new Date(f.lastModified) : null, name: f.name }); }
+    catch { failed++; }
+    say(`Adding ${++n} of ${files.length}…`);
+  }
+  say(failed ? `Added ${files.length - failed} of ${files.length}. Some files couldn't be read. HEIC photos only open in Safari.` : `Added ${files.length} from this device.`, failed ? 'error' : 'info');
+});
+
+/* ============ Drawing primitives ============ */
+function coverDraw(ctx, el, iw, ih, x, y, w, h, zoom=1, px=0, py=0){
+  const s = Math.max(w/iw, h/ih) * zoom;
+  const dw = iw*s, dh = ih*s;
+  const dx = x + (w - dw)/2 + px*(dw - w)/2;
+  const dy = y + (h - dh)/2 + py*(dh - h)/2;
+  if (el.tagName === 'VIDEO' && el.readyState < 2) return;
+  ctx.drawImage(el, dx, dy, dw, dh);
+}
+function roundRectPath(ctx, x, y, w, h, r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function wrapLines(ctx, text, maxW){
+  const words = text.split(/\s+/); const lines = []; let line = '';
+  for (const w of words){
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line){ lines.push(line); line = w; } else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+/* ============ Reel ============ */
+const styleHints = {
+  montage: 'Quick cuts on the beat with a small punch-in. Best with a track.',
+  kenburns: 'Each photo slowly zooms and drifts, with soft fades between.',
+  story: 'Plays in date order with dates on screen and a card for each new year.'
+};
+
+function readReelOpts(){
+  return {
+    style: $('input[name=rstyle]:checked').value,
+    shape: $('input[name=rshape]:checked').value,
+    secs: +$('#secs').value,
+    bpm: clamp(+$('#bpm').value || 100, 40, 220),
+    beats: +$('#beats').value,
+    title: $('#rtitle').value.trim(),
+    sub: $('#rsub').value.trim(),
+    end: $('#rend').value.trim()
+  };
+}
+
+function buildTimeline(o){
+  const segs = []; let t = 0;
+  const beat = 60 / o.bpm;
+  const shot = o.style === 'montage' ? beat * o.beats : o.secs;
+  const fade = o.style === 'montage' ? 0 : Math.min(0.7, shot * 0.3);
+  const push = s => { s.start = t; segs.push(s); t += s.dur; };
+  let list = state.items;
+  if (o.style === 'story') list = [...list].sort((a,b) => (a.date ? +a.date : Infinity) - (b.date ? +b.date : Infinity));
+  if (!list.length) return { segs, total: 0, fade };
+  if (o.title) push({ kind:'title', dur: o.style === 'montage' ? beat * Math.max(4, o.beats*2) : 3, bg: list[0] });
+  let year = null;
+  list.forEach(it => {
+    if (o.style === 'story' && it.date){
+      const y = it.date.getFullYear();
+      if (y !== year){ push({ kind:'year', dur: 1.8, text: String(y), bg: it }); year = y; }
+    }
+    let dur = shot;
+    if (it.type === 'video'){
+      const want = Math.min(it.duration || shot, shot * (o.style === 'montage' ? 2 : 1.6));
+      dur = o.style === 'montage' ? Math.max(1, Math.round(want / beat)) * beat : Math.max(shot, want);
+    }
+    push({ kind:'shot', dur, item: it, clipStart: it.type === 'video' ? Math.max(0, ((it.duration || 0) - dur) * 0.3) : 0 });
+  });
+  if (o.end) push({ kind:'end', dur: o.style === 'montage' ? beat * 4 : 3, bg: list[list.length - 1] });
+  return { segs, total: t, fade };
+}
+
+function getMotion(it, style){
+  const key = it.id + style;
+  if (motionCache.has(key)) return motionCache.get(key);
+  const r = rng(it.id * 9973 + style.length);
+  const z0 = style === 'story' ? 1.03 : 1.06, z1 = style === 'story' ? 1.12 : 1.22;
+  const zoomIn = r() > 0.4;
+  const m = { za: zoomIn ? z0 : z1, zb: zoomIn ? z1 : z0, ax:(r()*2-1)*.8, ay:(r()*2-1)*.8, bx:(r()*2-1)*.8, by:(r()*2-1)*.8 };
+  motionCache.set(key, m); return m;
+}
+
+function cardText(ctx, W, H, big, small, isYear){
+  const base = Math.min(W, H);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const size = base * (isYear ? 0.22 : 0.095);
+  ctx.font = `800 ${size}px Archivo, system-ui, sans-serif`;
+  ctx.fillStyle = '#FFFFFF';
+  const lines = big ? wrapLines(ctx, big, W * 0.82) : [];
+  const smallSize = base * 0.038;
+  const lh = size * 1.06;
+  const blockH = lines.length * lh + (small ? smallSize * 2 : 0);
+  let y = H/2 - blockH/2 + lh/2;
+  lines.forEach(l => { ctx.fillText(l, W/2, y); y += lh; });
+  if (small){
+    ctx.font = `600 ${smallSize}px Archivo, system-ui, sans-serif`;
+    ctx.fillStyle = FILM;
+    ctx.fillText(small, W/2, y - lh/2 + smallSize * 1.4);
+  }
+}
+
+function dateCaption(ctx, W, H, text, alpha){
+  const size = Math.min(W, H) * 0.042, pad = Math.min(W, H) * 0.065;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.font = `700 ${size}px Archivo, system-ui, sans-serif`;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = size * .5; ctx.shadowOffsetY = size * .06;
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText(text, pad, H - pad);
+  ctx.restore();
+}
+
+function drawSeg(ctx, W, H, seg, t, o, alpha){
+  if (alpha <= 0) return;
+  const local = t - seg.start;
+  const p = clamp(local / seg.dur, 0, 1);
+  ctx.save(); ctx.globalAlpha = alpha;
+  if (seg.kind === 'shot'){
+    const it = seg.item;
+    ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+    if (o.style === 'montage'){
+      const k = 1 - Math.min(1, Math.max(0, local) / Math.min(0.35, seg.dur));
+      coverDraw(ctx, it.el, it.w, it.h, 0, 0, W, H, 1.02 + 0.1 * k * k, 0, 0);
+      if (local >= 0 && local < 0.09){ ctx.fillStyle = `rgba(255,255,255,${(1 - local/0.09) * 0.22})`; ctx.fillRect(0, 0, W, H); }
+    } else {
+      const m = getMotion(it, o.style), e = ease(p);
+      coverDraw(ctx, it.el, it.w, it.h, 0, 0, W, H, lerp(m.za, m.zb, e), lerp(m.ax, m.bx, e), lerp(m.ay, m.by, e));
+    }
+    if (o.style === 'story' && it.date) dateCaption(ctx, W, H, fmtDate(it.date), clamp(local / 0.5, 0, 1));
+  } else {
+    ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+    const bg = seg.bg;
+    if (bg){
+      coverDraw(ctx, bg.el, bg.w, bg.h, 0, 0, W, H, 1.15 + 0.06 * p, 0, 0);
+      ctx.fillStyle = 'rgba(17,24,34,.64)'; ctx.fillRect(0, 0, W, H);
+    }
+    const big = seg.kind === 'title' ? o.title : seg.kind === 'end' ? o.end : seg.text;
+    cardText(ctx, W, H, big, seg.kind === 'title' ? o.sub : '', seg.kind === 'year');
+  }
+  ctx.restore();
+}
+
+function drawFrame(ctx, W, H, tl, t, o){
+  const { segs, fade } = tl;
+  ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+  if (!segs.length) return;
+  let i = segs.findIndex(s => t < s.start + s.dur);
+  if (i < 0) i = segs.length - 1;
+  const seg = segs[i];
+  drawSeg(ctx, W, H, seg, t, o, 1);
+  if (fade > 0 && i + 1 < segs.length){
+    const into = t - (seg.start + seg.dur - fade);
+    if (into > 0) drawSeg(ctx, W, H, segs[i+1], t, o, into / fade);
+  }
+}
+
+function syncVideos(tl, t){
+  for (const s of tl.segs){
+    if (s.kind !== 'shot' || s.item.type !== 'video') continue;
+    const v = s.item.el;
+    const on = t >= s.start - tl.fade - 0.05 && t < s.start + s.dur;
+    if (on && !s.started){ s.started = true; try { v.currentTime = s.clipStart; } catch {} v.play().catch(()=>{}); }
+    if (!on && s.started && !v.paused) v.pause();
+  }
+}
+
+function pickMime(){
+  const c = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2','video/mp4;codecs=avc1','video/mp4','video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'];
+  return c.find(m => window.MediaRecorder?.isTypeSupported?.(m)) || '';
+}
+
+function ensureActx(){
+  if (!state.actx) state.actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (state.actx.state === 'suspended') state.actx.resume();
+  return state.actx;
+}
+
+function setupAudio(total){
+  if (!state.audioBuf) return null;
+  const actx = ensureActx();
+  const src = actx.createBufferSource(); src.buffer = state.audioBuf;
+  const gain = actx.createGain(); const dest = actx.createMediaStreamDestination();
+  src.connect(gain); gain.connect(dest); gain.connect(actx.destination);
+  return {
+    dest,
+    start(){
+      const now = actx.currentTime;
+      gain.gain.setValueAtTime(1, now);
+      gain.gain.setValueAtTime(1, now + Math.max(0, total - 1.5));
+      gain.gain.linearRampToValueAtTime(0.0001, now + total);
+      src.start(now);
+    },
+    stop(){ try { src.stop(); } catch {} src.disconnect(); gain.disconnect(); }
+  };
+}
+
+function setRunningUI(record){
+  const active = record ? $('#record') : $('#preview');
+  const other = record ? $('#preview') : $('#record');
+  active.textContent = record ? 'Stop recording' : 'Stop preview';
+  other.disabled = true;
+  $$('#reelOpts input, #reelOpts select, #reelOpts label.btn').forEach(el => { if (el.tagName !== 'LABEL') el.disabled = true; });
+}
+function setIdleUI(){
+  $('#record').textContent = 'Record video'; $('#preview').textContent = 'Preview';
+  $('#record').disabled = false; $('#preview').disabled = false;
+  $$('#reelOpts input, #reelOpts select').forEach(el => el.disabled = false);
+  $('#progress').value = 0;
+}
+
+async function runReel(record){
+  if (state.running){ state.running.stop(); return; }
+  if (!state.items.length){ say('Add some photos or clips first.', 'error'); return; }
+  const o = readReelOpts();
+  const tl = buildTimeline(o);
+  const [W, H] = REEL_SIZES[o.shape];
+  const cv = $('#reelCanvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  await fontsReady();
+  state.items.forEach(it => { if (it.type === 'video') it.el.pause(); });
+
+  const audio = setupAudio(tl.total);
+  let rec = null, chunks = [], mime = '';
+  if (record){
+    if (!window.MediaRecorder || !cv.captureStream){ audio?.stop(); say("This browser can't record video. Try Chrome or Safari.", 'error'); return; }
+    const stream = cv.captureStream(30);
+    audio?.dest.stream.getAudioTracks().forEach(tr => stream.addTrack(tr));
+    mime = pickMime();
+    try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 8e6 } : { videoBitsPerSecond: 8e6 }); }
+    catch { rec = new MediaRecorder(stream); mime = rec.mimeType; }
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    $('#reelOut').hidden = true;
+  }
+
+  let stopped = false;
+  state.running = { stop(){ stopped = true; } };
+  setRunningUI(record);
+  say(record ? 'Recording. Keep this tab on screen…' : 'Previewing…');
+
+  drawFrame(ctx, W, H, tl, 0, o);
+  rec?.start(250);
+  audio?.start();
+  const t0 = performance.now();
+  await new Promise(resolve => {
+    const tick = () => {
+      const t = (performance.now() - t0) / 1000;
+      if (stopped || t >= tl.total){ resolve(); return; }
+      syncVideos(tl, t);
+      drawFrame(ctx, W, H, tl, t, o);
+      $('#progress').value = t / tl.total;
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  if (!stopped){ drawFrame(ctx, W, H, tl, tl.total - 0.001, o); await sleep(120); }
+  state.items.forEach(it => { if (it.type === 'video') it.el.pause(); });
+  audio?.stop();
+  state.running = null; setIdleUI();
+
+  if (rec){
+    await new Promise(r => { rec.onstop = r; rec.stop(); });
+    if (stopped){ say('Recording stopped. Nothing was saved.'); drawPoster(); return; }
+    const type = (mime || rec.mimeType || 'video/webm').split(';')[0];
+    showReel(new Blob(chunks, { type }), type);
+  } else {
+    say(stopped ? 'Preview stopped.' : 'Preview finished.');
+    drawPoster();
+  }
+}
+
+function showReel(blob, type){
+  const ext = type.includes('mp4') ? 'mp4' : 'webm';
+  if (state.reelUrl) URL.revokeObjectURL(state.reelUrl);
+  const url = state.reelUrl = URL.createObjectURL(blob);
+  $('#reelVideo').src = url;
+  const a = $('#reelDownload'); a.href = url; a.download = `spool-reel-${stamp()}.${ext}`;
+  $('#reelOut').hidden = false;
+  setupShare($('#reelShare'), blob, a.download);
+  say(`Reel ready: ${ext.toUpperCase()}, ${(blob.size / 1e6).toFixed(1)} MB.`);
+}
+
+function setupShare(btn, blob, name){
+  let file;
+  try { file = new File([blob], name, { type: blob.type }); } catch { btn.hidden = true; return; }
+  if (navigator.canShare && navigator.canShare({ files: [file] })){
+    btn.hidden = false;
+    btn.onclick = () => navigator.share({ files: [file] }).catch(() => {});
+  } else btn.hidden = true;
+}
+
+function drawPoster(){
+  if (state.running) return;
+  const o = readReelOpts();
+  const [W, H] = REEL_SIZES[o.shape];
+  const cv = $('#reelCanvas');
+  if (cv.width !== W || cv.height !== H){ cv.width = W; cv.height = H; }
+  const ctx = cv.getContext('2d');
+  const tl = buildTimeline(o);
+  if (!tl.segs.length){
+    ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#7F8B99'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `600 ${Math.min(W, H) * .045}px Archivo, system-ui, sans-serif`;
+    ctx.fillText('Add photos to see a preview', W/2, H/2);
+    return;
+  }
+  drawFrame(ctx, W, H, tl, tl.segs[0].kind === 'shot' ? 0.3 : Math.min(1, tl.segs[0].dur * 0.5), o);
+}
+
+function updateLen(){
+  const el = $('#reelLen');
+  if (!state.items.length){ el.textContent = ''; return; }
+  const tl = buildTimeline(readReelOpts());
+  let msg = `Runs about ${Math.round(tl.total)} seconds.`;
+  if (state.audioBuf && state.audioBuf.duration < tl.total) msg += ' That is longer than the track, so the ending will be silent.';
+  el.textContent = msg;
+}
+
+function syncReelControls(){
+  const style = $('input[name=rstyle]:checked').value;
+  $('#bpmRow').hidden = style !== 'montage';
+  $('#secsRow').hidden = style === 'montage';
+  $('#styleHint').textContent = styleHints[style];
+  $('#secsOut').textContent = `${$('#secs').value} s`;
+}
+
+/* Tempo */
+function guessBpm(buf){
+  const data = buf.getChannelData(0), sr = buf.sampleRate, hop = Math.round(sr / 100);
+  const n = Math.min(Math.floor(data.length / hop), 6000);
+  if (n < 200) return 100;
+  const env = new Float32Array(n);
+  for (let i = 0; i < n; i++){ let s = 0; const o = i*hop; for (let j = 0; j < hop; j++){ const v = data[o+j]; s += v*v; } env[i] = Math.sqrt(s / hop); }
+  const on = new Float32Array(n);
+  for (let i = 1; i < n; i++) on[i] = Math.max(0, env[i] - env[i-1]);
+  let best = 0, bestLag = 60;
+  for (let lag = 33; lag <= 100; lag++){ let s = 0; for (let i = lag; i < n; i++) s += on[i] * on[i-lag]; if (s > best){ best = s; bestLag = lag; } }
+  let bpm = 6000 / bestLag;
+  while (bpm < 80) bpm *= 2; while (bpm > 165) bpm /= 2;
+  return Math.round(bpm);
+}
+
+$('#tap').addEventListener('click', () => {
+  const now = performance.now(), ts = state.tapTimes;
+  if (ts.length && now - ts[ts.length-1] > 2000) ts.length = 0;
+  ts.push(now);
+  if (ts.length >= 2){
+    const iv = []; for (let i = 1; i < ts.length; i++) iv.push(ts[i] - ts[i-1]);
+    const recent = iv.slice(-4);
+    $('#bpm').value = Math.round(60000 / (recent.reduce((a,b) => a + b, 0) / recent.length));
+    refreshOutputs();
+  }
+  say(ts.length < 2 ? 'Keep tapping along to the beat.' : `Tempo set to ${$('#bpm').value} BPM.`);
+});
+
+$('#music').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const actx = ensureActx();
+  say('Reading the track…');
+  try {
+    const ab = await f.arrayBuffer();
+    state.audioBuf = await new Promise((res, rej) => actx.decodeAudioData(ab, res, rej));
+    const bpm = guessBpm(state.audioBuf);
+    $('#bpm').value = bpm;
+    $('#musicName').textContent = `${f.name} (${fmtDur(state.audioBuf.duration)})`;
+    $('#musicClear').hidden = false;
+    say(`Track loaded. Tempo guessed at ${bpm} BPM. Use Tap tempo if it feels off.`);
+    refreshOutputs();
+  } catch {
+    say("That audio file couldn't be read. Try an MP3 or M4A.", 'error');
+  }
+});
+$('#musicClear').addEventListener('click', () => {
+  state.audioBuf = null;
+  $('#musicName').textContent = 'No track yet, so the reel will be silent';
+  $('#musicClear').hidden = true; refreshOutputs();
+});
+
+$('#preview').addEventListener('click', () => { ensureActx(); runReel(false); });
+$('#record').addEventListener('click', () => { ensureActx(); runReel(true); });
+$('#reelOpts').addEventListener('input', () => { syncReelControls(); refreshOutputs(); });
+$('#reelOpts').addEventListener('change', () => { syncReelControls(); refreshOutputs(); });
+
+/* ============ Collage ============ */
+const layoutHints = {
+  grid: 'Every frame the same size, filling the page.',
+  hero: 'Frame 01 goes big. The rest line up beside it.',
+  polaroid: 'Scattered instant-camera prints. Works best with up to about 20 frames.'
+};
+
+function bestGrid(n, w, h, gap){
+  let best = null;
+  for (let c = 1; c <= n; c++){
+    const r = Math.ceil(n / c);
+    const cw = (w - gap*(c-1)) / c, ch = (h - gap*(r-1)) / r;
+    if (cw <= 0 || ch <= 0) continue;
+    const score = Math.abs(Math.log(cw / ch)) + ((c*r - n) / n) * 0.9;
+    if (!best || score < best.score) best = { c, r, cw, ch, score };
+  }
+  return best || { c: 1, r: n, cw: w, ch: h / n };
+}
+
+function drawCell(ctx, it, x, y, w, h, rad, dates){
+  ctx.save();
+  roundRectPath(ctx, x, y, w, h, rad); ctx.clip();
+  ctx.fillStyle = '#26303D'; ctx.fillRect(x, y, w, h);
+  coverDraw(ctx, it.el, it.w, it.h, x, y, w, h, 1, 0, 0);
+  if (dates && it.date){
+    const size = clamp(Math.min(w, h) * 0.07, 22, 64);
+    ctx.font = `700 ${size}px Archivo, system-ui, sans-serif`;
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = size * .5;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(fmtDate(it.date), x + size*0.7, y + h - size*0.7);
+  }
+  ctx.restore();
+}
+
+function gridLayout(ctx, a, list, gap, rounded, dates){
+  if (!list.length) return;
+  const g = bestGrid(list.length, a.w, a.h, gap);
+  const rad = rounded ? Math.min(g.cw, g.ch) * 0.05 : 0;
+  list.forEach((it, i) => {
+    const row = Math.floor(i / g.c), col = i % g.c;
+    const inRow = row === g.r - 1 ? list.length - row * g.c : g.c;
+    const cw = (a.w - gap*(inRow - 1)) / inRow;
+    drawCell(ctx, it, a.x + col*(cw + gap), a.y + row*(g.ch + gap), cw, g.ch, rad, dates);
+  });
+}
+
+function heroLayout(ctx, a, list, gap, rounded, dates){
+  const [first, ...rest] = list;
+  const rad = rounded ? Math.min(a.w, a.h) * 0.025 : 0;
+  if (!rest.length){ drawCell(ctx, first, a.x, a.y, a.w, a.h, rad, dates); return; }
+  if (a.w >= a.h){
+    const hw = (a.w - gap) * 0.6;
+    drawCell(ctx, first, a.x, a.y, hw, a.h, rad, dates);
+    gridLayout(ctx, { x: a.x + hw + gap, y: a.y, w: a.w - hw - gap, h: a.h }, rest, gap, rounded, dates);
+  } else {
+    const hh = (a.h - gap) * 0.6;
+    drawCell(ctx, first, a.x, a.y, a.w, hh, rad, dates);
+    gridLayout(ctx, { x: a.x, y: a.y + hh + gap, w: a.w, h: a.h - hh - gap }, rest, gap, rounded, dates);
+  }
+}
+
+function drawPolaroid(ctx, it, cx, cy, s, rot, dates){
+  const fw = s, fh = s * 1.2, m = s * 0.06, ph = fw - 2*m;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(rot);
+  ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = s * 0.05; ctx.shadowOffsetY = s * 0.02;
+  ctx.fillStyle = '#FBFBF8'; ctx.fillRect(-fw/2, -fh/2, fw, fh);
+  ctx.shadowColor = 'transparent';
+  ctx.save(); ctx.beginPath(); ctx.rect(-fw/2 + m, -fh/2 + m, ph, ph); ctx.clip();
+  ctx.fillStyle = '#26303D'; ctx.fillRect(-fw/2 + m, -fh/2 + m, ph, ph);
+  coverDraw(ctx, it.el, it.w, it.h, -fw/2 + m, -fh/2 + m, ph, ph, 1, 0, 0);
+  ctx.restore();
+  if (dates && it.date){
+    const top = -fh/2 + m + ph;
+    ctx.fillStyle = '#2A3340'; ctx.font = `600 ${s * 0.09}px Caveat, cursive`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(fmtDate(it.date), 0, (top + fh/2) / 2);
+  }
+  ctx.restore();
+}
+
+function polaroidLayout(ctx, a, list, dates){
+  const n = list.length;
+  const pad = Math.min(a.w, a.h) * 0.07;
+  const inner = { x: a.x + pad, y: a.y + pad, w: a.w - 2*pad, h: a.h - 2*pad };
+  const g = bestGrid(n, inner.w, inner.h, 0);
+  const s = Math.min(g.cw, g.ch / 1.2) * 1.12;
+  const r = rng(n * 7919 + 13);
+  list.forEach((it, i) => {
+    const row = Math.floor(i / g.c), col = i % g.c;
+    const inRow = row === g.r - 1 ? n - row * g.c : g.c;
+    const cw = inner.w / inRow;
+    const cx = inner.x + cw*(col + 0.5) + (r() - 0.5) * g.cw * 0.18;
+    const cy = inner.y + g.ch*(row + 0.5) + (r() - 0.5) * g.ch * 0.18;
+    drawPolaroid(ctx, it, cx, cy, s, (r() - 0.5) * 0.24, dates);
+  });
+}
+
+function collageBg(){
+  const v = $('#cbgPreset').value;
+  return v === 'custom' ? $('#cbg').value : v;
+}
+
+async function renderCollage(){
+  const out = $('#collageOut');
+  const cv = $('#collageCanvas');
+  const shape = $('input[name=cshape]:checked').value;
+  const [W, H] = COLLAGE_SIZES[shape];
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  const bg = collageBg();
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  if (!state.items.length){
+    ctx.fillStyle = luminance(bg) > .5 ? '#5E6A7A' : '#C9D0D8';
+    ctx.font = `600 ${Math.min(W, H) * .04}px Archivo, system-ui, sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Add photos to see a preview', W/2, H/2);
+    out.hidden = true; return;
+  }
+  await fontsReady();
+  const layout = $('input[name=clayout]:checked').value;
+  const gap = Math.round(Math.min(W, H) * (+$('#cgap').value) / 100);
+  const title = $('#ctitle').value.trim();
+  const dates = $('#cdates').checked, rounded = $('#cround').checked;
+  const textInk = luminance(bg) > .45 ? INK : '#FFFFFF';
+  let area = layout === 'polaroid' ? { x: 0, y: 0, w: W, h: H } : { x: gap, y: gap, w: W - 2*gap, h: H - 2*gap };
+  if (title){
+    const band = Math.round(H * 0.11);
+    const hand = layout === 'polaroid';
+    ctx.fillStyle = textInk; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    let size = band * (hand ? 0.72 : 0.46);
+    ctx.font = hand ? `700 ${size}px Caveat, cursive` : `800 ${size}px Archivo, system-ui, sans-serif`;
+    while (ctx.measureText(title).width > W * 0.9 && size > 20){ size *= 0.92; ctx.font = hand ? `700 ${size}px Caveat, cursive` : `800 ${size}px Archivo, system-ui, sans-serif`; }
+    const top = layout === 'polaroid' ? H * 0.02 : Math.max(gap, H * 0.015);
+    ctx.fillText(title, W/2, top + band/2);
+    area = { x: area.x, y: top + band, w: area.w, h: area.y + area.h - (top + band) };
+  }
+  const list = state.items;
+  if (layout === 'grid') gridLayout(ctx, area, list, gap, rounded, dates);
+  else if (layout === 'hero') heroLayout(ctx, area, list, gap, rounded, dates);
+  else polaroidLayout(ctx, area, list, dates);
+
+  cv.toBlob(blob => {
+    if (!blob) return;
+    if (state.collageUrl) URL.revokeObjectURL(state.collageUrl);
+    const url = state.collageUrl = URL.createObjectURL(blob);
+    const a = $('#collageDownload'); a.href = url; a.download = `spool-collage-${stamp()}.jpg`;
+    out.hidden = false;
+    setupShare($('#collageShare'), blob, a.download);
+  }, 'image/jpeg', 0.92);
+}
+
+let collageTimer = null;
+function scheduleCollage(){ clearTimeout(collageTimer); collageTimer = setTimeout(renderCollage, 160); }
+
+function syncCollageControls(){
+  $('#cbg').hidden = $('#cbgPreset').value !== 'custom';
+  $('#layoutHint').textContent = layoutHints[$('input[name=clayout]:checked').value];
+}
+$('#collageOpts').addEventListener('input', () => { syncCollageControls(); scheduleCollage(); });
+$('#collageOpts').addEventListener('change', () => { syncCollageControls(); scheduleCollage(); });
+
+/* ============ Tabs and refresh ============ */
+function selectTab(which){
+  state.tab = which;
+  $('#tab-reel').setAttribute('aria-selected', which === 'reel');
+  $('#tab-collage').setAttribute('aria-selected', which === 'collage');
+  $('#panel-reel').hidden = which !== 'reel';
+  $('#panel-collage').hidden = which !== 'collage';
+  refreshOutputs();
+}
+$('#tab-reel').addEventListener('click', () => selectTab('reel'));
+$('#tab-collage').addEventListener('click', () => selectTab('collage'));
+$('.tabs').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+  const next = state.tab === 'reel' ? 'collage' : 'reel';
+  selectTab(next); $('#tab-' + next).focus();
+});
+
+function refreshOutputs(){
+  if (state.tab === 'reel'){ updateLen(); drawPoster(); }
+  else scheduleCollage();
+}
+
+/* ============ Settings ============ */
+function openSettings(){
+  $('#cidInput').value = clientId();
+  $('#proxyInput').value = proxyUrl();
+  $('#originCode').textContent = location.origin;
+  $('#settings').showModal();
+}
+$('#openSettings').addEventListener('click', openSettings);
+document.addEventListener('click', e => { if (e.target.closest('[data-open-settings]')) openSettings(); });
+$('#settings').addEventListener('close', () => {
+  if ($('#settings').returnValue !== 'save') return;
+  store.set('spool.clientId', $('#cidInput').value.trim());
+  store.set('spool.proxy', $('#proxyInput').value.trim());
+  $('#setupHint').hidden = !!clientId();
+  if (clientId()){ loadGIS().catch(e => say(e.message, 'error')); say('Saved. Tap Connect Google Photos to sign in.'); }
+  else say('Saved without a client ID. You can still add photos from this device.');
+});
+
+$('#connect').addEventListener('click', async () => {
+  if (!clientId()){ openSettings(); return; }
+  try {
+    if (!tokenValid()) await requestToken();
+    await prepareSession();
+  } catch(e){ say(e.message, 'error'); }
+});
+$('#pickLink').addEventListener('click', () => { setTimeout(startPolling, 300); });
+
+/* ============ Start ============ */
+$('#setupHint').hidden = !!clientId();
+if (clientId()) loadGIS().catch(() => {});
+if (location.protocol === 'file:') say('Opened as a local file. Google sign-in needs this page served from a web address, such as GitHub Pages.', 'error');
+syncReelControls(); syncCollageControls();
+renderSheet(); refreshOutputs();
+document.fonts.ready.then(refreshOutputs);
+</script>
+</body>
+</html>
