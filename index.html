@@ -180,8 +180,12 @@ body.dropping::after{content:"Drop to add to the contact sheet";position:fixed;i
           <div class="row">
             <input type="file" id="music" accept="audio/*" class="vh">
             <label for="music" class="btn ghost small">Choose a track</label>
-            <span id="musicName" class="mute">No track yet, so the reel will be silent</span>
+            <span id="musicName" class="mute">No track yet</span>
             <button id="musicClear" class="linkish" type="button" hidden>Remove</button>
+          </div>
+          <div class="row" id="clipSoundRow" style="margin-top:12px" hidden>
+            <label class="inline"><input type="checkbox" id="clipSound" checked> Play sound from clips</label>
+            <label class="inline" id="duckLabel"><input type="checkbox" id="duck" checked> Lower the music during clips</label>
           </div>
           <div class="row" id="bpmRow" style="margin-top:12px">
             <label class="inline" for="bpm">Tempo <input type="number" id="bpm" min="40" max="220" value="100" inputmode="numeric"> BPM</label>
@@ -761,7 +765,9 @@ function readReelOpts(){
     beats: +$('#beats').value,
     title: $('#rtitle').value.trim(),
     sub: $('#rsub').value.trim(),
-    end: $('#rend').value.trim()
+    end: $('#rend').value.trim(),
+    clipSound: $('#clipSound').checked,
+    duck: $('#duck').checked
   };
 }
 
@@ -882,7 +888,12 @@ function syncVideos(tl, t){
     if (s.kind !== 'shot' || s.item.type !== 'video') continue;
     const v = s.item.el;
     const on = t >= s.start - tl.fade - 0.05 && t < s.start + s.dur;
-    if (on && !s.started){ s.started = true; try { v.currentTime = s.clipStart; } catch {} v.play().catch(()=>{}); }
+    if (on && !s.started){
+      s.started = true;
+      try { v.currentTime = s.clipStart; } catch {}
+      // If the browser refuses to play with sound, keep the picture going silently.
+      v.play().catch(e => { if (e.name === 'NotAllowedError' && !v.muted){ v.muted = true; v.play().catch(()=>{}); } });
+    }
     if (!on && s.started && !v.paused) v.pause();
   }
 }
@@ -898,22 +909,86 @@ function ensureActx(){
   return state.actx;
 }
 
-function setupAudio(total){
-  if (!state.audioBuf) return null;
+/* Clip sound: each video is routed through its own gain node once, so it is only heard while its shot is on screen. */
+function clipGain(it){
+  if (!it.audio){
+    try {
+      const actx = ensureActx();
+      const src = actx.createMediaElementSource(it.el), g = actx.createGain();
+      g.gain.value = 0; src.connect(g);
+      it.audio = { g };
+    } catch { it.audio = { failed: true }; }
+  }
+  if (it.audio.failed) return null;
+  it.el.muted = false;
+  return it.audio.g;
+}
+const hasClips = () => state.items.some(it => it.type === 'video');
+
+// Safari only lets a video play with sound if play() was first called during a tap, so do that here.
+function unlockClips(){
+  if (!$('#clipSound').checked) return;
+  state.items.forEach(it => {
+    if (it.type !== 'video' || !clipGain(it)) return;
+    it.el.play()?.catch(() => {}); it.el.pause();
+  });
+}
+
+function setupAudio(tl, o){
+  const clips = o.clipSound ? tl.segs.filter(s => s.kind === 'shot' && s.item.type === 'video') : [];
+  if (!state.audioBuf && !clips.length) return null;
   const actx = ensureActx();
-  const src = actx.createBufferSource(); src.buffer = state.audioBuf;
-  const gain = actx.createGain(); const dest = actx.createMediaStreamDestination();
-  src.connect(gain); gain.connect(dest); gain.connect(actx.destination);
+  const dest = actx.createMediaStreamDestination();
+  const out = actx.createGain(); out.connect(dest); out.connect(actx.destination);
+  let src = null, music = null;
+  if (state.audioBuf){
+    src = actx.createBufferSource(); src.buffer = state.audioBuf;
+    music = actx.createGain(); src.connect(music); music.connect(out);
+  }
+  const wins = [];
+  for (const s of clips){
+    const g = clipGain(s.item); if (!g) continue;
+    g.connect(out);
+    wins.push({ g, a: Math.max(0, s.start - tl.fade), b: s.start + s.dur });
+  }
+  const ramp = Math.max(0.08, tl.fade);
   return {
     dest,
     start(){
-      const now = actx.currentTime;
-      gain.gain.setValueAtTime(1, now);
-      gain.gain.setValueAtTime(1, now + Math.max(0, total - 1.5));
-      gain.gain.linearRampToValueAtTime(0.0001, now + total);
-      src.start(now);
+      const now = actx.currentTime, total = tl.total;
+      out.gain.setValueAtTime(1, now);
+      out.gain.setValueAtTime(1, now + Math.max(0, total - 1.5));
+      out.gain.linearRampToValueAtTime(0.0001, now + total);
+      for (const w of wins){
+        w.g.gain.cancelScheduledValues(0);
+        w.g.gain.setValueAtTime(0, now + w.a);
+        w.g.gain.linearRampToValueAtTime(1, now + w.a + ramp);
+        w.g.gain.setValueAtTime(1, now + Math.max(w.a + ramp, w.b - 0.2));
+        w.g.gain.linearRampToValueAtTime(0, now + w.b);
+      }
+      if (music && o.duck && wins.length){
+        // Merge back-to-back clips so the music stays down between them.
+        const duck = [];
+        for (const w of wins){
+          const last = duck[duck.length - 1];
+          if (last && w.a <= last.b + 0.5) last.b = Math.max(last.b, w.b); else duck.push({ a: w.a, b: w.b });
+        }
+        music.gain.setValueAtTime(1, now);
+        for (const d of duck){
+          music.gain.setValueAtTime(1, now + d.a);
+          music.gain.linearRampToValueAtTime(0.25, now + d.a + ramp);
+          music.gain.setValueAtTime(0.25, now + Math.max(d.a + ramp, d.b - 0.3));
+          music.gain.linearRampToValueAtTime(1, now + d.b);
+        }
+      }
+      src?.start(now);
     },
-    stop(){ try { src.stop(); } catch {} src.disconnect(); gain.disconnect(); }
+    stop(){
+      try { src?.stop(); } catch {}
+      src?.disconnect(); music?.disconnect();
+      for (const w of wins){ w.g.gain.cancelScheduledValues(0); w.g.gain.value = 0; w.g.disconnect(); }
+      out.disconnect();
+    }
   };
 }
 
@@ -942,7 +1017,7 @@ async function runReel(record){
   await fontsReady();
   state.items.forEach(it => { if (it.type === 'video') it.el.pause(); });
 
-  const audio = setupAudio(tl.total);
+  const audio = setupAudio(tl, o);
   let rec = null, chunks = [], mime = '';
   if (record){
     if (!window.MediaRecorder || !cv.captureStream){ audio?.stop(); say("This browser can't record video. Try Chrome or Safari.", 'error'); return; }
@@ -1048,6 +1123,11 @@ function syncReelControls(){
   $('#secsRow').hidden = style === 'montage';
   $('#styleHint').textContent = styleHints[style];
   $('#secsOut').textContent = `${$('#secs').value} s`;
+  syncClipControls();
+}
+function syncClipControls(){
+  $('#clipSoundRow').hidden = !hasClips();
+  $('#duckLabel').hidden = !state.audioBuf || !$('#clipSound').checked;
 }
 
 /* Tempo */
@@ -1099,12 +1179,12 @@ $('#music').addEventListener('change', async e => {
 });
 $('#musicClear').addEventListener('click', () => {
   state.audioBuf = null;
-  $('#musicName').textContent = 'No track yet, so the reel will be silent';
+  $('#musicName').textContent = 'No track yet';
   $('#musicClear').hidden = true; refreshOutputs();
 });
 
-$('#preview').addEventListener('click', () => { ensureActx(); runReel(false); });
-$('#record').addEventListener('click', () => { ensureActx(); runReel(true); });
+$('#preview').addEventListener('click', () => { ensureActx(); if (!state.running) unlockClips(); runReel(false); });
+$('#record').addEventListener('click', () => { ensureActx(); if (!state.running) unlockClips(); runReel(true); });
 $('#reelOpts').addEventListener('input', () => { syncReelControls(); refreshOutputs(); });
 $('#reelOpts').addEventListener('change', () => { syncReelControls(); refreshOutputs(); savePrefs(); });
 
@@ -1272,7 +1352,7 @@ $('#collageOpts').addEventListener('input', () => { syncCollageControls(); sched
 $('#collageOpts').addEventListener('change', () => { syncCollageControls(); scheduleCollage(); savePrefs(); });
 
 /* ============ Remembered choices ============ */
-const PREF_IDS = ['secs', 'beats', 'cbgPreset', 'cbg', 'cgap'], PREF_CHECKS = ['cround', 'cdates'];
+const PREF_IDS = ['secs', 'beats', 'cbgPreset', 'cbg', 'cgap'], PREF_CHECKS = ['cround', 'cdates', 'clipSound', 'duck'];
 function savePrefs(){
   const p = {};
   $$('#reelOpts input[type=radio]:checked, #collageOpts input[type=radio]:checked').forEach(r => p[r.name] = r.value);
@@ -1314,6 +1394,7 @@ $('.tabs').addEventListener('keydown', e => {
 });
 
 function refreshOutputs(){
+  syncClipControls();
   if (state.tab === 'reel'){ updateLen(); drawPoster(); }
   else scheduleCollage();
 }
